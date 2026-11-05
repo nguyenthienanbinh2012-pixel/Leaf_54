@@ -9,34 +9,60 @@ end
 shared.Hastelepasta = true
 
 
-
-
 getgenv().Abysall = {
     Legit = true
 }
-
 local BaseUrl = "https://raw.githubusercontent.com/100manfaces-ship-it/Abysall/main/"
 
+-- Environment tự viết — gọi trực tiếp hàm executor (Delta có đủ)
+local Environment = {}
+for _, name in ipairs({
+    "gethui", "cloneref", "hookmetamethod", "newcclosure", "getnamecallmethod",
+    "fireproximityprompt", "firetouchinterest", "replicatesignal", "isnetworkowner",
+    "getconnections", "require", "firesignal", "setclipboard",
+    "writefile", "readfile", "isfile", "makefolder", "listfiles", "delfile"
+}) do
+    Environment[name] = rawget(getfenv(), name) or rawget(_G, name)
+end
+
+-- Thử kéo ESP.luau từ repo còn sống; nếu chết thì stub
+local ESPLibrary
+local espOk, espRes = pcall(function()
+    return game:HttpGet("https://raw.githubusercontent.com/arda201415/Abysall/refs/heads/main/Components/ESP.luau?t=" .. tick())
+end)
+if espOk and espRes and #espRes > 200 and espRes:sub(1,1) ~= "<" then
+    local espFn = loadstring(espRes)
+    if espFn then
+        local ok, res = pcall(espFn)
+        if ok then ESPLibrary = res end
+    end
+end
+
+if not ESPLibrary then
+    ESPLibrary = {
+        ColorTable = {},
+        GenerateRandomString = function() return tostring(math.random(1e9, 9e9)) end,
+        AddESP = function() end, RemoveESP = function() end,
+        UpdateObjectColor = function() end,
+        SetRainbow = function() end, SetShowDistance = function() end,
+        SetFillTransparency = function() end, SetOutlineTransparency = function() end,
+        SetTextTransparency = function() end, SetTextOutlineTransparency = function() end,
+        SetRenderLimit = function() end, SetFadeTime = function() end,
+        SetTextSize = function() end, SetFont = function() end,
+        SetTracers = function() end, SetTracerSize = function() end,
+        SetTracerOrigin = function() end, SetArrows = function() end,
+        SetArrowRadius = function() end, SetDistanceSizeRatio = function() end,
+        Unload = function() end,
+    }
+end
+
 getgenv().Abysall = {
-    Environment = loadstring(game:HttpGet(BaseUrl .. "Components/Environment.luau"))(),
-    ESPLibrary = loadstring(game:HttpGet(BaseUrl .. "Components/ESP.luau"))(),
-    ["16Notice"] = (function()
-        local ok, res = pcall(function()
-            return loadstring(game:HttpGet(BaseUrl .. "Components/16Notice.luau"))()
-        end)
-        return ok and res or nil
-    end)(),
-    Legit = true
+    Legit = true,
+    Environment = Environment,
+    ESPLibrary = ESPLibrary,
 }
 
 local Abysall = getgenv().Abysall
-
-local function CloneReference(Object)
-    if Abysall and Abysall.Environment.cloneref then
-        return Abysall.Environment.cloneref(Object)
-    end
-    return Object
-end
 
 local Services = setmetatable({}, {
     __index = function(Self, Name)
@@ -83,9 +109,7 @@ Abysall.Interface = loadstring(game:HttpGet(
     BaseUrl .. "Components/Interface.luau"
 ))()
 
-Abysall.Analytics = loadstring(game:HttpGet(
-    BaseUrl .. "Components/Analytics.luau"
-))()
+Abysall.Analytics = { Track = function() end }
 
 
 Abysall.SavePath = "Doors/Game"
@@ -771,7 +795,6 @@ end
 
 if not LocalPlayer.Character or not CurrentRooms:FindFirstChildOfClass("Model") then
 	Functions.Notify({ Title = "Waiting for the game to load..." })
-	queue_on_teleport([[loadstring(game:HttpGet("https://raw.githubusercontent.com/therealcookiemonsterof1966/AbysallContinued/main/Games/Doors/Main.luau"))()]])
 	while not LocalPlayer.Character or not CurrentRooms:FindFirstChildOfClass("Model") do
 		task.wait()
 	end
