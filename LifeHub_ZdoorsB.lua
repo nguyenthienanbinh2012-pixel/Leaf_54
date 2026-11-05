@@ -409,7 +409,8 @@ local CutsceneNames = {
 
 local Character
 local Humanoid
-local RootPartlocal Collision
+local RootPart
+local Collision
 local CollisionClone
 local CollisionPart
 local CollisionPartClone
@@ -1229,9 +1230,10 @@ Functions.GetRandomCode = function()
     Globals.UsedRandomCodes[NewCode] = true
     return NewCode
 end
-
+Library.Scheme.AccentColor = Color3.fromRGB(50, 205, 50) -- hoặc 34, 197, 94 / 0, 255, 127
+if Library.UpdateColors then Library:UpdateColors() end
 local Window = Library:CreateWindow({
-	Title = "🎃 Abysall Hub Continued",
+	Title = "🌿Leaf Hub",
 	Footer = "dsc.gg/abysallhubcontinued",
 	NotifySide = "Right",
 	ShowCustomCursor = false,
@@ -1242,16 +1244,7 @@ local Window = Library:CreateWindow({
 	CornerRadius = 6,
 })
 
-
 -- Data
-
-
-
-
-
-
-
-
 
 Abysall.Interface.ApplyInfoTab(Window)
 
@@ -1272,7 +1265,7 @@ Groupboxes.General_Character:AddToggle("SpeedBoostToggle", {
 	Text = "Enable Speed Boost", Default = false, Tooltip = "Increases your walkspeed by the specified amount."
 })
 Groupboxes.General_Character:AddToggle("FlyToggle", {
-	Text = "Fly", Default = false, Tooltip = "Allows you to freely fly around the map."
+	Text = "Fly", Default = false, Tooltip = "Giúp Bay."
 })
 Toggles.FlyToggle:AddKeyPicker("FlyKeybind", {
 	Text = "Fly", Default = "F", Mode = "Toggle", SyncToggleState = true
@@ -1282,14 +1275,14 @@ Groupboxes.General_Character:AddSlider("FlySpeed", {
 })
 Groupboxes.General_Character:AddDivider()
 Groupboxes.General_Character:AddToggle("NoclipToggle", {
-	Text = "Noclip", Default = false, Tooltip = "Allows your character to pass through solid objects."
+	Text = "Noclip", Default = false, Tooltip = "Giúp nhân vật đi xuyên các vật thể chỉ không kéo lùi khi đi xuyên vật nhỏ."
 })
 Groupboxes.General_Character:AddToggle("RemoveClosetDelay", {
 	Text = "Remove Closet Delay", Default = false,
-	Tooltip = "Removes the short window where you can't exit out of a closet after the animation finishes."
+	Tooltip = "Xoá độ trễ khi Ra khỏi tủ."
 })
 Groupboxes.General_Character:AddToggle("RemoveAcceleration", {
-	Text = "Remove Acceleration", Default = false, Tooltip = "Prevents your character from sliding while moving."
+	Text = "Remove Acceleration", Default = false, Tooltip = "Bỏ Qua Delay tăng tốc của nhân vật."
 })
 
 local CustomPhysics
@@ -1311,13 +1304,13 @@ end)
 
 Groupboxes.General_Character:AddDivider()
 Groupboxes.General_Character:AddToggle("EnableCharacterJump", {
-	Text = "Enable Jumping", Default = false, Tooltip = "Allows your character to jump."
+	Text = "Enable Jumping", Default = false, Tooltip = "Cho Nút nhảy Nhân vật."
 })
 Groupboxes.General_Character:AddToggle("EnableCharacterSlide", {
-	Text = "Enable Sliding", Default = false, Tooltip = "Allows your character to slide."
+	Text = "Enable Sliding", Default = false, Tooltip = "Cho Phét trượt"
 })
 Groupboxes.General_Character:AddToggle("InfiniteJumps", {
-	Text = "Infinite Jumps", Default = false, Tooltip = "Allows you to jump while in the air."
+	Text = "Infinite Jumps", Default = false, Tooltip = "Voi hạn nhảy cho nhân vật."
 })
 
 local OldJump = false
@@ -1341,7 +1334,7 @@ end)
 
 Groupboxes.General_Self = Tabs.General:AddLeftGroupbox("Self")
 Groupboxes.General_Self:AddToggle("DoorReachToggle", {
-	Text = "Door Reach", Default = false, Tooltip = "Allows you to open doors from further away."
+	Text = "Door Reach", Default = false, Tooltip = "Tăng tầm với cho nhân vật"
 })
 Groupboxes.General_Self:AddToggle("DisableIdleKick", {
 	Text = "Disable Idle Kick", Default = false, Tooltip = "Prevents the kick from being idle for 20 minutes."
