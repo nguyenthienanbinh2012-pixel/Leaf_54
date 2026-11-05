@@ -1252,7 +1252,9 @@ local Window = Library:CreateWindow({
 })
 
 -- Data
-
+if not Abysall.Interface.ApplySupportedGamesTab then
+    Abysall.Interface.ApplySupportedGamesTab = function() end
+end
 Abysall.Interface.ApplyInfoTab(Window)
 
 local Tabs = {
