@@ -859,8 +859,8 @@ Functions.SendChat = function(Message)
 	local Event = Folder:FindFirstChild("SayMessageRequest") or Instance.new("RemoteEvent")
 	Event:FireServer(Message, "All")
 	local Channel = (Services.TextChatService:FindFirstChild("TextChannels") and Services.TextChatService.TextChannels:FindFirstChild("RBXGeneral")) or Instance.new("TextChannel")
-	Channel:SendAsync(Message)
-endFunctions.IsCrouching = function()
+	Channel:SendAsync(Message)end
+	Functions.IsCrouching = function()
 	if Floor == "Fools" or Floor == "OldHotel" then
 		return Character:GetAttribute("Crouching")
 	end
