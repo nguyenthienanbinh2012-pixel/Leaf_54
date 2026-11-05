@@ -20,7 +20,12 @@ local BaseUrl = "https://raw.githubusercontent.com/100manfaces-ship-it/Abysall/m
 getgenv().Abysall = {
     Environment = loadstring(game:HttpGet(BaseUrl .. "Components/Environment.luau"))(),
     ESPLibrary = loadstring(game:HttpGet(BaseUrl .. "Components/ESP.luau"))(),
-    ["16Notice"] = loadstring(game:HttpGet(BaseUrl .. "Components/16Notice.luau"))(),
+    ["16Notice"] = (function()
+        local ok, res = pcall(function()
+            return loadstring(game:HttpGet(BaseUrl .. "Components/16Notice.luau"))()
+        end)
+        return ok and res or nil
+    end)(),
     Legit = true
 }
 
