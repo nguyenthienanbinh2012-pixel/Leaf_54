@@ -111,9 +111,13 @@ if Abysall.Environment.writefile and Abysall.Environment.readfile then
     )
 end
 
-Abysall.Interface = loadstring(game:HttpGet(
-    BaseUrl .. "Components/Interface.luau"
-))()
+Abysall.Interface = {
+    Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/Library.lua"))(),
+    SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/addons/SaveManager.lua"))(),
+    ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/addons/ThemeManager.lua"))(),
+    ApplyInfoTab = function() end,
+    ApplySettingsTab = function() end,
+}
 
 Abysall.Analytics = { Track = function() end }
 
@@ -134,11 +138,6 @@ local function CloneReference(Object)
 	return Object
 end
 
-local Services = setmetatable({}, {
-	__index = function(Self, Name)
-		return CloneReference(game:GetService(Name))
-	end
-})
 
 
 
@@ -682,7 +681,11 @@ Globals.DoorsNotify = function(NotifyOptions)
 	end)
 end
 
-Globals.STX = loadstring(game:HttpGet("https://raw.githubusercontent.com/bocaj111004/Abysall/refs/heads/main/Components/STX.luau"))()
+Globals.STX = {
+    Notify = function(self, a, b, c)
+        Library:OldNotify({ Title = a.Title, Description = a.Description, Time = b.Time })
+    end
+}
 Functions.Notify = function(Settings)
 	local HiddenContainer = GetHiddenContainer()
 
@@ -2569,118 +2572,6 @@ end)
 
 Groupboxes.Stairwell_Experimental:AddToggle("AntiNoise", { Text = "Anti Noise", Default = false, Tooltip = "Prevents the game from making noise when moving (Visual studio auto ai lmfao ✌)." })
 Groupboxes.Stairwell_Experimental:AddToggle("BypassNoise", { Text = "Noise Tv Breaker", Default = false, Tooltip = "Breaks the tv of noise while holding it." })
-
-Toggles.AntiNoise:OnChanged(function(value)
-	for i, conn in ipairs(Connections) do
-		if conn.Disconnect then
-			conn:Disconnect()
-			table.remove(Connections, i)
-		end
-	end
-
-	local antiNoiseConn = RunService.PreSimulation:Connect(function(dt)
-		if not value then return end
-		if not LocalPlayer:GetAttribute("Alive") then return end
-
-		local character = LocalPlayer.Character
-		if not character then return end
-
-		local rootPart = character:FindFirstChild("HumanoidRootPart")
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
-		local camera = workspace.CurrentCamera
-
-		if not rootPart or not humanoid or not camera then return end
-		if humanoid.Health <= 0 then return end
-		if rootPart.Anchored then return end
-
-		local state = humanoid:GetState()
-		if state == Enum.HumanoidStateType.Dead
-			or state == Enum.HumanoidStateType.Ragdoll
-			or state == Enum.HumanoidStateType.Climbing
-			or state == Enum.HumanoidStateType.Swimming
-		then
-			return
-		end
-
-		humanoid.AutoRotate = false
-		humanoid:Move(Vector3.zero, false)
-
-		local inputVector = Controls:GetMoveVector()
-		local inputMagnitude = inputVector.Magnitude
-
-		if inputMagnitude <= 0 then
-			rootPart.AssemblyLinearVelocity = Vector3.zero
-			return
-		end
-
-		local cameraCFrame = camera.CFrame
-		local cameraForward = Vector3.new(cameraCFrame.LookVector.X, 0, cameraCFrame.LookVector.Z)
-		local cameraRight = Vector3.new(cameraCFrame.RightVector.X, 0, cameraCFrame.RightVector.Z)
-
-		if cameraForward.Magnitude < 0.001 or cameraRight.Magnitude < 0.001 then return end
-
-		cameraForward = cameraForward.Unit
-		cameraRight = cameraRight.Unit
-
-		local worldDirection = (cameraRight * inputVector.X) + (cameraForward * -inputVector.Z)
-		if worldDirection.Magnitude <= 0 then return end
-		worldDirection = worldDirection.Unit
-
-		local finalSpeed = humanoid.WalkSpeed * math.clamp(inputMagnitude, 0, 1)
-		local clampedDt = math.clamp(dt, 0, 1/30)
-
-		rootPart.AssemblyLinearVelocity = Vector3.zero
-		rootPart.CFrame = rootPart.CFrame + (worldDirection * finalSpeed * clampedDt)
-		rootPart.CFrame = CFrame.new(rootPart.Position, rootPart.Position + worldDirection)
-	end)
-
-	table.insert(Connections, antiNoiseConn)
-end)
-
-Toggles.BypassNoise:OnChanged(function(value)
-	for i = #Connections, 1, -1 do
-		local existingConnection = Connections[i]
-		if existingConnection and existingConnection.Disconnect then
-			existingConnection:Disconnect()
-		end
-		table.remove(Connections, i)
-	end
-	if not value then return end
-	local bypassNoiseLocalPlayerUserId = localUserId or (localPlayer and localPlayer.UserId) or (LocalPlayer and LocalPlayer.UserId)
-	local function checkBypassNoiseTvStand(targetTvStand)
-		if not targetTvStand:IsA("Model") then return end
-		if targetTvStand.Name ~= "TV_Stand" then return end
-		if targetTvStand:GetAttribute("LastPusherId") ~= bypassNoiseLocalPlayerUserId then return end
-		local tvStandCurrentCFrame = targetTvStand:GetPivot()
-		if tvStandCurrentCFrame.Position.Y > -119 then
-			targetTvStand:PivotTo(CFrame.new(tvStandCurrentCFrame.Position.X, -120, tvStandCurrentCFrame.Position.Z))
-			Functions.Notify({ Title = "Unequip the tv." })
-		end
-	end
-	local function checkBypassNoiseAllTvStands()
-		local bypassNoiseMiscFolder = workspace:FindFirstChild("Misc")
-		if not bypassNoiseMiscFolder then return end
-		for _, bypassNoiseMiscChild in ipairs(bypassNoiseMiscFolder:GetChildren()) do
-			checkBypassNoiseTvStand(bypassNoiseMiscChild)
-		end
-	end
-	local bypassNoiseMiscFolder = workspace:FindFirstChild("Misc")
-	if bypassNoiseMiscFolder then
-		local bypassNoiseMiscChildAddedConnection = bypassNoiseMiscFolder.ChildAdded:Connect(function(bypassNoiseNewChild)
-			task.wait(0.1)
-			checkBypassNoiseTvStand(bypassNoiseNewChild)
-		end)
-		Connections[#Connections + 1] = bypassNoiseMiscChildAddedConnection
-	end
-	task.spawn(function()
-		while Toggles.BypassNoise.Value do
-			checkBypassNoiseAllTvStands()
-			task.wait(1)
-		end
-	end)
-end)
-
-
 Groupboxes.Exploits_BypassRight = Tabs.Exploits:AddRightGroupbox("Bypass")
 Groupboxes.Exploits_BypassRight:AddToggle("DisableAnticheat", {
 	Text = "Anticheat Bypass", Default = false,
