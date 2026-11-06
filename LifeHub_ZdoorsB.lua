@@ -14,7 +14,6 @@ getgenv().Abysall = {
 }
 local BaseUrl = "https://raw.githubusercontent.com/100manfaces-ship-it/Abysall/main/"
 
--- Environment tự viết — gọi trực tiếp hàm executor (Delta có đủ)
 local Environment = {}
 for _, name in ipairs({
     "gethui", "cloneref", "hookmetamethod", "newcclosure", "getnamecallmethod",
@@ -22,7 +21,14 @@ for _, name in ipairs({
     "getconnections", "require", "firesignal", "setclipboard",
     "writefile", "readfile", "isfile", "makefolder", "listfiles", "delfile"
 }) do
-    Environment[name] = rawget(getfenv(), name) or rawget(_G, name)
+    local fn = rawget(getfenv(), name) or rawget(_G, name)
+    if not fn then
+        local ok, res = pcall(function()
+            return loadstring("return " .. name)()
+        end)
+        if ok then fn = res end
+    end
+    Environment[name] = fn
 end
 
 -- Thử kéo ESP.luau từ repo còn sống; nếu chết thì stub
