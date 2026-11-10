@@ -274,7 +274,6 @@ Functions.ApplySpeedBoost = function()
     local Target = Functions.GetCurrentSpeed() + (Active and SliderVal or 0)
     Humanoid.WalkSpeed = Target
     if Active and Target > 16 then
-        Character:SetAttribute("SpeedBoost", Target - 15)
     end
 end
 
