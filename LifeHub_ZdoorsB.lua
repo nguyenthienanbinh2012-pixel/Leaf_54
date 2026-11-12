@@ -29,8 +29,17 @@ if Library.UpdateColors then Library:UpdateColors() end
 local ThemeManager, SaveManager
 pcall(function() ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))() end)
 pcall(function() SaveManager = loadstring(game:HttpGet(repo .. 'addons/SaveManager.lua'))() end)
-local ESPLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/TheHunterSolo1/Scripts/main/ESPLibrary"))() 
-local HttpService = game:GetService("HttpService")
+local okEsp, ESPLibrary = pcall(function()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/TheHunterSolo1/Scripts/main/ESPLibrary"))()
+end)
+if not okEsp or type(ESPLibrary) \~= "table" then
+    warn("[Leaf] ESPLibrary fail:", ESPLibrary)
+    ESPLibrary = {
+        AddESP = function() end, RemoveESP = function() end, Unload = function() end,
+        SetShowDistance = function() end, SetTracers = function() end, SetRainbow = function() end,
+        SetESPMode = function() end, SetFont = function() end, SetRenderingSpeed = function() end,
+    }
+end
 if SaveManager then
 local oldSave = SaveManager.Save
 SaveManager.Save = function(self, name)
