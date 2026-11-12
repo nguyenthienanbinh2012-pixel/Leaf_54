@@ -471,6 +471,7 @@ Main = Window:AddTab('Player', "User-round"),
 Bypass = Window:AddTab('Bypass', "ban"),
 Visuals = Window:AddTab('Visuals',"eye"),
 Floor = Window:AddTab('Floor', "Building-2"),
+Other = Window:AddTab('Other', "drama"),
 Settings = Window:AddTab('Settings',"settings"),
 }
 local PrankBox = Tabs.Other:AddLeftGroupbox("Prank","wand-sparkles")
@@ -565,6 +566,161 @@ table.insert(Connections, LocalPlayer.CharacterAdded:Connect(function()
 		end
 	end
 end))
+local BringBox = Tabs.Other:AddLeftGroupBox("Bring","magnet")
+-- Helpers Bring / Orbit (Drops folder = item game đã drop)
+local isBringDropsRunning = false
+local OrbitDroppedItemsConnection = nil
+local OrbitDroppedItemsAngle = 0
+local OrbitDroppedItemsLastTeleport = 0
+local OrbitDroppedItemsPauseUntil = 0
+
+local function SafeTeleportDropItem(dropItem, targetCFrame)
+	if not dropItem or not dropItem.Parent then return end
+	pcall(function()
+		if dropItem.PivotTo then
+			dropItem:PivotTo(targetCFrame)
+		elseif dropItem:IsA("BasePart") then
+			dropItem.CFrame = targetCFrame
+		else
+			local main = dropItem:FindFirstChild("Handle")
+				or dropItem.PrimaryPart
+				or dropItem:FindFirstChildWhichIsA("BasePart")
+			if main then
+				main.CFrame = targetCFrame
+			end
+		end
+	end)
+end
+
+local function BringDroppedItems()
+	if isBringDropsRunning then return end
+	isBringDropsRunning = true
+	pcall(function()
+		local dropsFolder = workspace:FindFirstChild("Drops")
+		local char = LocalPlayer.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		if not dropsFolder or not root then return end
+		local dropItems = dropsFolder:GetChildren()
+		if #dropItems == 0 then
+			if Notify then Notify("No dropped items in Drops", 2) end
+			return
+		end
+		-- Trước mặt player, không đâm vào body
+		local safeFront = root.CFrame * CFrame.new(0, -1.8, -3.0)
+		local count = 0
+		for _, dropItem in ipairs(dropItems) do
+			if dropItem and dropItem.Parent then
+				local jitter = Vector3.new(
+					math.random(-8, 8) * 0.12,
+					0.1,
+					math.random(-8, 8) * 0.12
+				)
+				SafeTeleportDropItem(dropItem, CFrame.new(safeFront.Position + jitter))
+				count = count + 1
+				if count % 25 == 0 then
+					task.wait()
+				end
+			end
+		end
+		if Notify then Notify("Brought " .. tostring(count) .. " dropped items", 2) end
+	end)
+	isBringDropsRunning = false
+end
+
+BringBox:AddButton({
+	Text = "Bring Item Dropped",
+	Func = function()
+		task.spawn(BringDroppedItems)
+	end,
+})
+-- Tooltip: gán nếu library hỗ trợ sau khi tạo button; hoặc dùng AddLabel:
+BringBox:AddLabel("Bring: chỉ item trong workspace.Drops (item game đã drop)", true)
+
+BringBox:AddToggle("OrbitDroppedItems", {
+	Text = "Orbit Item",
+	Default = false,
+	Tooltip = "Giúp Xoay Item xung quanh người chơi",
+	Callback = function(Value)
+		if OrbitDroppedItemsConnection then
+			OrbitDroppedItemsConnection:Disconnect()
+			OrbitDroppedItemsConnection = nil
+		end
+		if not Value then return end
+		OrbitDroppedItemsAngle = 0
+		OrbitDroppedItemsLastTeleport = tick()
+		OrbitDroppedItemsPauseUntil = 0
+		OrbitDroppedItemsConnection = RunService.Heartbeat:Connect(function(dt)
+			local char = LocalPlayer.Character
+			local root = char and char:FindFirstChild("HumanoidRootPart")
+			local dropsFolder = workspace:FindFirstChild("Drops")
+			if not root or not dropsFolder then return end
+			local height = (Options.OrbitDroppedItemsHeight and Options.OrbitDroppedItemsHeight.Value) or 2
+			local distance = (Options.OrbitDroppedItemsDistance and Options.OrbitDroppedItemsDistance.Value) or 6
+			local speed = (Options.OrbitDroppedItemsSpeed and Options.OrbitDroppedItemsSpeed.Value) or 1
+			local now = tick()
+			local list = {}
+			for _, obj in ipairs(dropsFolder:GetChildren()) do
+				if obj:IsA("Model") or obj:IsA("BasePart") then
+					list[#list + 1] = obj
+				end
+			end
+			local count = #list
+			if count == 0 then return end
+			-- Mỗi 10s kéo về gần để chống despawn (Abysall)
+			if now - OrbitDroppedItemsLastTeleport >= 10 then
+				OrbitDroppedItemsLastTeleport = now
+				OrbitDroppedItemsPauseUntil = now + 2
+				local safeCenter = root.CFrame * CFrame.new(0, -1.8, -2.5)
+				for _, obj in ipairs(list) do
+					local jitter = Vector3.new(math.random(-6, 6) * 0.1, 0.1, math.random(-6, 6) * 0.1)
+					SafeTeleportDropItem(obj, CFrame.new(safeCenter.Position + jitter))
+				end
+			end
+			if now < OrbitDroppedItemsPauseUntil then return end
+			OrbitDroppedItemsAngle = OrbitDroppedItemsAngle + dt * speed
+			for i, obj in ipairs(list) do
+				local ang = OrbitDroppedItemsAngle + ((i - 1) / count) * math.pi * 2
+				local offset = Vector3.new(
+					math.cos(ang) * distance,
+					height,
+					math.sin(ang) * distance
+				)
+				local pos = root.Position + offset
+				if obj:IsA("Model") then
+					pcall(function() obj:PivotTo(CFrame.new(pos)) end)
+				else
+					pcall(function() obj.CFrame = CFrame.new(pos) end)
+				end
+			end
+		end)
+	end,
+})
+
+BringBox:AddSlider("OrbitDroppedItemsHeight", {
+	Text = "Orbit Height",
+	Default = 2,
+	Min = -20,
+	Max = 20,
+	Rounding = 1,
+	Compact = false,
+	Tooltip = "Chiều cao orbit item quanh player",
+})
+BringBox:AddSlider("OrbitDroppedItemsDistance", {
+	Text = "Orbit Distance",
+	Default = 6,
+	Min = 1,
+	Max = 20,
+	Rounding = 1,
+	Compact = false,
+})
+BringBox:AddSlider("OrbitDroppedItemsSpeed", {
+	Text = "Orbit Speed",
+	Default = 1,
+	Min = 0.1,
+	Max = 5,
+	Rounding = 1,
+	Compact = false,
+})
 local PlayerBox = Tabs.Main:AddLeftGroupbox('Body','person-standing')
 local GameBox = Tabs.Main:AddLeftGroupbox('Game Management','gamepad-2')
 local HotelFloor = Tabs.Floor:AddLeftGroupbox('Hotel','hotel')
@@ -1343,9 +1499,11 @@ HidingPlaces = {
 	["CircularVent"] = "Vent",
 }
 Closets = Closets or {}
-for _, v in pairs(workspace.CurrentRooms:GetDescendants()) do
-	if HidingPlaces[v.Name] then
-		table.insert(Closets, v)
+if workspace:FindFirstChild("CurrentRooms") then
+	for _, v in pairs(workspace.CurrentRooms:GetDescendants()) do
+		if HidingPlaces[v.Name] then
+			table.insert(Closets, v)
+		end
 	end
 end
 ESPHooks = {}
