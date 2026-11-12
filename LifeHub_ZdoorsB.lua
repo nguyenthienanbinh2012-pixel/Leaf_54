@@ -2858,9 +2858,9 @@ RestorePrompt(Prompt)
 end
 end
 end
+BypassBox:AddLabel("If Infinite Items doesn't work with Auto-Interact (R), it will work with the default game bind (E). Just keep tapping it",true)
 BypassBox:AddToggle('InfItems',{
 Text = "Infinite Items",
-BypassBox:AddLabel("If Infinite Items doesn't work with Auto-Interact (R), it will work with the default game bind (E). Just keep tapping it",true),
 Callback = function(Value)
 if Value then
 for _, v in pairs(workspace.CurrentRooms:GetDescendants()) do
