@@ -1,6 +1,33 @@
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
+HidingPlaces = {
+    ["Wardrobe"]="Closet", ["Rooms_Locker"]="Locker", ["Rooms_Locker_Fridge"]="Fridge",
+    ["Locker_Large"]="Locker", ["Backdoor_Wardrobe"]="Closet", ["Bed"]="Bed",
+    ["Double_Bed"]="Double Bed", ["Toolshed"]="Closet", ["RetroWardrobe"]="Closet",
+    ["CircularVent"]="Vent",
+}
+Closets = {}
+Interactions = {}
+Stored = {}
+IsMoving = false
+
+function GetNearestHidingSpot()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    local closest, closestDist = nil, math.huge
+    for _, spot in ipairs(Closets) do
+        if spot.Parent and spot.PrimaryPart then
+            local hidden = spot:FindFirstChild("HiddenPlayer", true)
+            if not (hidden and hidden.Value) then
+                local dist = (spot.PrimaryPart.Position - root.Position).Magnitude
+                if dist < closestDist then closestDist = dist closest = spot end
+            end
+        end
+    end
+    return closest
+end
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
@@ -913,7 +940,7 @@ end
 end
 })
 MinesFloor:AddToggle('FixBrokenBridge',{
-Text = "Fix Broken Bridge",
+Text = "Tạo Part Sửa cầu vỡ màn The Mine",
 Default = false,
 Callback = function(Value)
 if Value then
@@ -1100,7 +1127,7 @@ PlayerBox:AddSlider("ClimbingSpeed", {
 Text = "Climbing Speed",
 Default = 15,
 Min = 15,
-Max = 30,
+Max = 100,
 Rounding = 1,
 Compact = false,
 Callback = function(Value)
@@ -1108,7 +1135,7 @@ end,
 Tooltip = "Climbing Speed",
 })
 PlayerBox:AddToggle('EnableClimbingSpeed',{
-Text = "Enable Climbing Speed",
+Text = "Tăng tốc độ leo",
 Default = false,
 Callback = function(Value)
 if not Value then
@@ -1119,7 +1146,7 @@ end
 PlayerBox:AddDivider()
 local OldAccel
 PlayerBox:AddToggle('NoAcc',{
-Text = "No Slipping",
+Text = "Bỏ qua Delay Trượt",
 Default = false,
 Callback = function(Value)
 if Value then
@@ -1485,27 +1512,10 @@ end
 end
 })
 for _, v in pairs(workspace.CurrentRooms:GetDescendants()) do
-if HidingPlaces[v.Name] then
-HidingPlaces = {
-	["Wardrobe"] = "Closet",
-	["Rooms_Locker"] = "Locker",
-	["Rooms_Locker_Fridge"] = "Fridge",
-	["Locker_Large"] = "Locker",
-	["Backdoor_Wardrobe"] = "Closet",
-	["Bed"] = "Bed",
-	["Double_Bed"] = "Double Bed",
-	["Toolshed"] = "Closet",
-	["RetroWardrobe"] = "Closet",
-	["CircularVent"] = "Vent",
-}
-Closets = Closets or {}
-if workspace:FindFirstChild("CurrentRooms") then
-	for _, v in pairs(workspace.CurrentRooms:GetDescendants()) do
-		if HidingPlaces[v.Name] then
-			table.insert(Closets, v)
-		end
+    if HidingPlaces[v.Name] then
+        table.insert(Closets, v)
+    end
 	end
-end
 ESPHooks = {}
 task.spawn(function()
 local DoorColor         = Color3.fromRGB(120, 255, 120)
