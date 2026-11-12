@@ -685,9 +685,15 @@ end
 })
 local DuckBoards = {}
 local Nodes = {}
+local Control
 if Require then
-local Control = require(LocalPlayer.PlayerScripts.PlayerModule):GetControls().GetMoveVector
-end
+	local ok, controls = pcall(function()
+		return require(LocalPlayer.PlayerScripts.PlayerModule):GetControls()
+	end)
+	if ok and controls and controls.GetMoveVector then
+		Control = controls.GetMoveVector
+	end
+    end
 MinesFloor:AddToggle('AutoMinecart',{
 Text = "Auto Minecart",
 Risky = true,
@@ -703,8 +709,9 @@ table.insert(Nodes, v)
 end
 end
 else
-require(LocalPlayer.PlayerScripts.PlayerModule):GetControls().GetMoveVector = Control
-table.clear(Nodes)
+if Control then
+	require(LocalPlayer.PlayerScripts.PlayerModule):GetControls().GetMoveVector = Control
+end
 table.clear(DuckBoards)
 end
 end
