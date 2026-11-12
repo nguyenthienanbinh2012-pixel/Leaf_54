@@ -3099,7 +3099,6 @@ end
 end
 end
 end
-end
 elseif LatestRoom.Value >= 50 then
 if LocalPlayer:GetAttribute("NotifyMinecart") then
 Notify("[Auto Minecart] YOU CAN MOVE", 5)
