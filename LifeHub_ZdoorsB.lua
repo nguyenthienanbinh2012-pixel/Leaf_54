@@ -467,28 +467,28 @@ end
 end
 end))
 local Tabs = {
-Main = Window:AddTab('Player', "star"),
+Main = Window:AddTab('Player', "User-round"),
 Bypass = Window:AddTab('Bypass', "ban"),
 Visuals = Window:AddTab('Visuals',"eye"),
-Floor = Window:AddTab('Floor', "sparkles"),
+Floor = Window:AddTab('Floor', "Building-2"),
 Settings = Window:AddTab('Settings',"settings"),
 }
-local PlayerBox = Tabs.Main:AddLeftGroupbox('Player')
-local GameBox = Tabs.Main:AddLeftGroupbox('Game Management')
-local HotelFloor = Tabs.Floor:AddLeftGroupbox('Hotel')
-local MinesFloor = Tabs.Floor:AddRightGroupbox('Mines')
-local FoolsFloor = Tabs.Floor:AddRightGroupbox('Fools')
-local RoomsFloor = Tabs.Floor:AddLeftGroupbox('Rooms')
-local RetroFloor = Tabs.Floor:AddLeftGroupbox('Retro')
-local AutoBox = Tabs.Main:AddRightGroupbox('Auto')
-local ReachBox = Tabs.Main:AddRightGroupbox('Reach')
-local CameraBox = Tabs.Visuals:AddLeftGroupbox('Camera')
-local LightingBox = Tabs.Visuals:AddLeftGroupbox('Lighting')
-local ESPBox = Tabs.Visuals:AddRightGroupbox('ESP')
-local ESPSettings = Tabs.Visuals:AddRightGroupbox('Settings')
-local NotifyBox = Tabs.Visuals:AddRightGroupbox('Notifying')
-local BypassEntityBox = Tabs.Bypass:AddLeftGroupbox('Bypass Entities')
-local BypassBox = Tabs.Bypass:AddRightGroupbox('Bypass')
+local PlayerBox = Tabs.Main:AddLeftGroupbox('Body','person-standing')
+local GameBox = Tabs.Main:AddLeftGroupbox('Game Management','gamepad-2')
+local HotelFloor = Tabs.Floor:AddLeftGroupbox('Hotel','hotel')
+local MinesFloor = Tabs.Floor:AddRightGroupbox('Mines','pickaxe')
+local FoolsFloor = Tabs.Floor:AddRightGroupbox('Fools','ghost')
+local RoomsFloor = Tabs.Floor:AddLeftGroupbox('Rooms','door-open')
+local RetroFloor = Tabs.Floor:AddLeftGroupbox('Retro','clock')
+local AutoBox = Tabs.Main:AddRightGroupbox('Auto','bot')
+local ReachBox = Tabs.Main:AddRightGroupbox('Reach','maximize')
+local CameraBox = Tabs.Visuals:AddLeftGroupbox('Camera','camera')
+local LightingBox = Tabs.Visuals:AddLeftGroupbox('Lighting','sun')
+local ESPBox = Tabs.Visuals:AddRightGroupbox('ESP','scan-eye')
+local ESPSettings = Tabs.Visuals:AddRightGroupbox('Settings','sliders-horizontal')
+local NotifyBox = Tabs.Visuals:AddRightGroupbox('Notifying','bell')
+local BypassEntityBox = Tabs.Bypass:AddLeftGroupbox('Bypass Entities','ghost')
+local BypassBox = Tabs.Bypass:AddRightGroupbox('Bypass','shield-check')
 RetroFloor:AddToggle('AntiLava',{
 Text = "Anti Lava",
 Default = false,
@@ -1251,8 +1251,10 @@ HidingPlaces = {
 	["CircularVent"] = "Vent",
 }
 Closets = Closets or {}
-table.insert(Closets, v)
-end
+for _, v in pairs(workspace.CurrentRooms:GetDescendants()) do
+	if HidingPlaces[v.Name] then
+		table.insert(Closets, v)
+	end
 end
 ESPHooks = {}
 task.spawn(function()
