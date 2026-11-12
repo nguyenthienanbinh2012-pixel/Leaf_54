@@ -473,6 +473,98 @@ Visuals = Window:AddTab('Visuals',"eye"),
 Floor = Window:AddTab('Floor', "Building-2"),
 Settings = Window:AddTab('Settings',"settings"),
 }
+local PrankBox = Tabs.Other:AddLeftGroupbox("Prank","wand-sparkles")
+-- Animation Twerk (mspaint id)
+local TwerkAnim = Instance.new("Animation")
+TwerkAnim.AnimationId = "rbxassetid://12874447851"
+local TwerkTrack = nil
+
+local function SetupTwerk()
+	local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+	if not hum then return end
+	pcall(function()
+		TwerkTrack = hum:LoadAnimation(TwerkAnim)
+		if TwerkTrack then
+			TwerkTrack.Looped = true
+		end
+	end)
+end
+
+PrankBox:AddToggle("WastefulToolOthers", {
+	Text = "Wasteful Tool Other people",
+	Default = false,
+	Risky = true,
+	Tooltip = "Làm hao tổn item phụ kiện người khác lên Sever,Có thể không hoạt động với các bản nâng cấp!",
+}):AddKeyPicker("WastefulToolOthersKey", {
+	Default = "V",
+	Mode = "Hold",
+	Text = "Wasteful Tool Others",
+	SyncToggleState = false,
+})
+
+task.defer(function()
+	task.wait(0.5)
+	pcall(function()
+		local t = Toggles.WastefulToolOthers
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(255,20,147)">Wasteful Tool Other people</font>'
+		end
+	end)
+end)
+
+PrankBox:AddToggle("UpsideDown", {
+	Text = "Character upside down",
+	Default = false,
+	Tooltip = "làm nhân vật bạn ĐI BẰNG ĐẦU",
+	Callback = function(Value)
+		local char = LocalPlayer.Character
+		local coll = char and char:FindFirstChild("Collision")
+		if not coll then return end
+		local rot = coll.Rotation
+		if Value then
+			coll.Rotation = Vector3.new(rot.X, rot.Y, -90)
+		else
+			coll.Rotation = Vector3.new(rot.X, rot.Y, 0)
+		end
+	end,
+})
+
+PrankBox:AddToggle("DanceTwerk", {
+	Text = "Dance Twerk",
+	Default = false,
+	Tooltip = "Nhảy điệu nhảy hài hước",
+	Callback = function(Value)
+		if Value then
+			SetupTwerk()
+			if TwerkTrack then
+				pcall(function() TwerkTrack:Play() end)
+			end
+		else
+			if TwerkTrack then
+				pcall(function() TwerkTrack:Stop() end)
+			end
+		end
+	end,
+})
+
+-- Giữ twerk khi respawn
+table.insert(Connections, LocalPlayer.CharacterAdded:Connect(function()
+	task.wait(1)
+	if Toggles.DanceTwerk and Toggles.DanceTwerk.Value then
+		SetupTwerk()
+		if TwerkTrack then pcall(function() TwerkTrack:Play() end) end
+	end
+	if Toggles.UpsideDown and Toggles.UpsideDown.Value then
+		local coll = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Collision")
+		if coll then
+			local rot = coll.Rotation
+			coll.Rotation = Vector3.new(rot.X, rot.Y, -90)
+		end
+	end
+end))
 local PlayerBox = Tabs.Main:AddLeftGroupbox('Body','person-standing')
 local GameBox = Tabs.Main:AddLeftGroupbox('Game Management','gamepad-2')
 local HotelFloor = Tabs.Floor:AddLeftGroupbox('Hotel','hotel')
@@ -3403,6 +3495,43 @@ if Toggles.FarmGlitchCube and Toggles.FarmGlitchCube.Value then
 				end
 			end
 		end
+	end
+end
+-- Wasteful Tool Others (Leaf Spam Other Tools)
+do
+	local wasteOn = Toggles.WastefulToolOthers and Toggles.WastefulToolOthers.Value
+	local keyOn = Options.WastefulToolOthersKey and Options.WastefulToolOthersKey:GetState()
+	if wasteOn or keyOn then
+		for _, plr in pairs(Players:GetPlayers()) do
+			if plr ~= LocalPlayer then
+				pcall(function()
+					if plr:FindFirstChild("Backpack") then
+						for _, tool in pairs(plr.Backpack:GetChildren()) do
+							if tool:IsA("Tool") then
+								local re = tool:FindFirstChildOfClass("RemoteEvent")
+								if re then
+									re:FireServer()
+								end
+							end
+						end
+					end
+					if plr.Character then
+						local toolRemote = plr.Character:FindFirstChild("Remote", true)
+						if toolRemote and toolRemote:IsA("RemoteEvent") then
+							toolRemote:FireServer()
+						end
+					end
+				end)
+			end
+		end
+	end
+end
+-- Giữ Upside Down mỗi frame (game có thể reset Rotation)
+if Toggles.UpsideDown and Toggles.UpsideDown.Value then
+	local coll = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Collision")
+	if coll and math.abs(coll.Rotation.Z + 90) > 1 then
+		local rot = coll.Rotation
+		coll.Rotation = Vector3.new(rot.X, rot.Y, -90)
 	end
 end
 if Toggles.NoFog.Value then
