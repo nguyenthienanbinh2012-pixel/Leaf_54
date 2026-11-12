@@ -32,7 +32,7 @@ pcall(function() SaveManager = loadstring(game:HttpGet(repo .. 'addons/SaveManag
 local okEsp, ESPLibrary = pcall(function()
     return loadstring(game:HttpGet("https://raw.githubusercontent.com/TheHunterSolo1/Scripts/main/ESPLibrary"))()
 end)
-if not okEsp or type(ESPLibrary) \~= "table" then
+if not okEsp or type(ESPLibrary) ~= "table" then
     warn("[Leaf] ESPLibrary fail:", ESPLibrary)
     ESPLibrary = {
         AddESP = function() end, RemoveESP = function() end, Unload = function() end,
