@@ -1236,9 +1236,21 @@ end
 end
 end
 })
-
 for _, v in pairs(workspace.CurrentRooms:GetDescendants()) do
 if HidingPlaces[v.Name] then
+HidingPlaces = {
+	["Wardrobe"] = "Closet",
+	["Rooms_Locker"] = "Locker",
+	["Rooms_Locker_Fridge"] = "Fridge",
+	["Locker_Large"] = "Locker",
+	["Backdoor_Wardrobe"] = "Closet",
+	["Bed"] = "Bed",
+	["Double_Bed"] = "Double Bed",
+	["Toolshed"] = "Closet",
+	["RetroWardrobe"] = "Closet",
+	["CircularVent"] = "Vent",
+}
+Closets = Closets or {}
 table.insert(Closets, v)
 end
 end
