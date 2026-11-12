@@ -25,7 +25,7 @@ getgenv().ScriptLibrary = "Obsidian"
 local repo = 'https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/'
 local Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
 task.wait()
-Library.Scheme.AccentColor = Color3.fromRGB(50, 205, 50)
+Library.Scheme.AccentColor = Color3.fromRGB(27, 255, 20)
 if Library.UpdateColors then Library:UpdateColors() end
 local ThemeManager, SaveManager
 pcall(function() ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))() end)
@@ -1003,96 +1003,99 @@ end))
 end
 end
 PlayerBox:AddToggle('Godmode',{
-Text = "Godmode",
+Text = "Position Spoof",
 Default = false,
-Tooltip = "Can Lagback you or not work",
-Risky  = true,
+Tooltip = "Đánh Lừa Hitbox Vị trí lên Sever,Tránh Entity Gây sát thương lên Part",
+Risky = true,
 Callback = function(Value)
-if Value and RemotesFolder.Name ~= "RemotesFolder" then
-LocalPlayer.Character.Collision.Position -= Vector3.new(0, 4, 0)
-end
-if Value and RemotesFolder.Name == "RemotesFolder" then
-LocalPlayer.Character:PivotTo(LocalPlayer.Character.CollisionPart.CFrame * CFrame.new(0, -2,0))
-end
-if not Value and RemotesFolder.Name == "RemotesFolder" then
-LocalPlayer.Character.Humanoid.HipHeight = 2.4
-LocalPlayer.Character.Collision.Size = Vector3.new(5.5, 3, 3)
-LocalPlayer.Character.LowerTorso.Root.C1 = CFrame.new(Vector3.new(0, 0, 0))
-LocalPlayer.Character.Collision.CollisionCrouch.Size = Vector3.new(5.5, 3, 3)
-LocalPlayer.Character:PivotTo(LocalPlayer.Character.CollisionPart.CFrame * CFrame.new(0, 2,0))
-end
-if not Value and RemotesFolder.Name ~= "RemotesFolder" then
-LocalPlayer.Character.Collision.Position = LocalPlayer.Character.HumanoidRootPart.Position
-end
+	local char = LocalPlayer.Character
+	if not char then return end
+	local root = char:FindFirstChild("HumanoidRootPart")
+	local coll = char:FindFirstChild("Collision")
+	if not Value then
+		if coll and root then
+			coll.Position = root.Position + Vector3.new(0, 0.18, 0)
+			coll.CanCollide = true
+			if coll:FindFirstChild("CollisionCrouch") then
+				coll.CollisionCrouch.CanCollide = true
+			end
+		end
+		if char:FindFirstChild("Humanoid") then
+			char.Humanoid.HipHeight = 2.4
+		end
+		if char:FindFirstChild("LowerTorso") and char.LowerTorso:FindFirstChild("Root") then
+			char.LowerTorso.Root.C1 = CFrame.new(0, 0, 0)
+		end
+	end
 end
 }):AddKeyPicker("GodmodeKeybind", {
-Default = "G", 	SyncToggleState = true,
-Mode ="Toggle" , 
-Text = "Godmode", 	NoUI = false, 
+Default = "G",
+SyncToggleState = true,
+Mode = "Toggle",
+Text = "Position Spoof",
+NoUI = false,
 Callback = function(Value)
 end,
 ChangedCallback = function(NewKey, NewModifiers)
 end,
 })
 local PromptIgnore = {
-HidePrompt = true,
-ClimbPrompt = true,
-PropPrompt = true,
-InteractPrompt = true,
-RiftPrompt = true,
-StarRiftPrompt = true,
-NoHidingLilBro = true,
-AnimatePrompt = true,
-RevivePrompt = true,
+	HidePrompt = true,
+	ClimbPrompt = true,
+	PropPrompt = true,
+	InteractPrompt = true,
+	RiftPrompt = true,
+	StarRiftPrompt = true,
+	NoHidingLilBro = true,
+	AnimatePrompt = true,
+	RevivePrompt = true,
+	EnterPrompt = true,
+	DialoguePrompt = true,
+	DonatePrompt = true,
+	ToolEventPrompt = true,
 }
 Interactions = {}
+local AutoInteractCooldowns = {}
+local SpoofRayParams = RaycastParams.new()
+SpoofRayParams.FilterType = Enum.RaycastFilterType.Exclude
+
 AutoBox:AddToggle("AutoInteract",{
 Text = "Auto Interact",
 Default = false,
-Tooltip = "Automatically Interacts with things when near",
+Tooltip = "Automatically interacts with nearby prompts",
 Callback = function(Value)
-if Value then
-for _, v in ipairs(workspace.CurrentRooms:GetDescendants()) do
-if v:IsA("ProximityPrompt") then
-if not (PromptIgnore[v.Name] or  v.Parent.Name == "Padlock" or  v.Parent:GetAttribute("JeffShop")) or v.Parent.Name == "RetroWardrobe" or v.Parent.Name == "KeyObtainFake" then
-table.insert(Interactions, v)
-end
-end
-end
-else
-table.clear(Interactions)
-end
+	table.clear(Interactions)
+	table.clear(AutoInteractCooldowns)
+	if Value and workspace:FindFirstChild("CurrentRooms") then
+		for _, v in ipairs(workspace.CurrentRooms:GetDescendants()) do
+			if v:IsA("ProximityPrompt") then
+				local parent = v.Parent
+				if parent and not PromptIgnore[v.Name]
+					and parent.Name ~= "Padlock"
+					and not parent:GetAttribute("JeffShop") then
+					table.insert(Interactions, v)
+				end
+			end
+		end
+	end
 end
 }):AddKeyPicker("AutoInteractKeybind", {
-Default = "R", 	SyncToggleState = true,
-Mode = Library.IsMobile and "Toggle"  or "Hold", 
-Text = "Auto Interact", 	NoUI = false, 
+Default = "R",
+SyncToggleState = true,
+Mode = Library.IsMobile and "Toggle" or "Hold",
+Text = "Auto Interact",
+NoUI = false,
 Callback = function(Value)
-print("[cb] Keybind clicked!", Value)
 end,
 ChangedCallback = function(NewKey, NewModifiers)
 end,
 })
-HidingPlaces = {
-["Wardrobe"] = "Closet",
-["Rooms_Locker"] = "Locker",
-["Rooms_Locker_Fridge"] = "Fridge",
-["Locker_Large"] = "Locker",
-["Backdoor_Wardrobe"] = "Closet",
-["Bed"] = "Bed",
-["Double_Bed"]  = "Double Bed",
-["Toolshed"] = "Closet",
-["RetroWardrobe"] = "Closet",
-["CircularVent"] = "Vent",
-["Bed"] = "Bed",
-["Double_Bed"] = "Double_Bed",
-}
-Closets = {}
+
 AutoBox:AddSlider("AutoInteractDelay", {
 Text = "Auto Interact Delay",
-Default = 0.05,
-Min = 0,
-Max = 0.2,
+Default = 0.06,
+Min = 0.03,
+Max = 0.25,
 Rounding = 2,
 Compact = false,
 Callback = function(Value)
@@ -1102,12 +1105,36 @@ AutoBox:AddSlider("AutoInteractreach", {
 Text = "Auto Interact Range",
 Default = 12,
 Min = 7,
-Max = 12,
-Rounding = 2,
+Max = 20,
+Rounding = 1,
 Compact = false,
 Callback = function(Value)
 end,
 })
+
+AutoBox:AddToggle("FarmGlitchCube", {
+Text = "Farm Glitch Cube",
+Default = false,
+Risky = true,
+Tooltip = "Auto farm GlitchCube / Glitch Fragment (lấy Glitch của game)",
+Callback = function(Value)
+end,
+})
+task.defer(function()
+	task.wait(0.6)
+	pcall(function()
+		local t = Toggles.FarmGlitchCube
+		if not t then return end
+		local lbl = t.TextLabel
+		if not lbl and t.Object then
+			lbl = t.Object:FindFirstChildWhichIsA("TextLabel", true)
+		end
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(255,20,147)">Farm Glitch Cube</font>'
+		end
+	end)
+end)
 AutoBox:AddDivider()
 AutoBox:AddToggle('AutoLibraryCode',{
 Text = "Auto Library Code",
@@ -2637,6 +2664,7 @@ end
 BypassEntityBox:AddToggle('AntiLag',{
 Text = "Anti Lag ",
 Default = false,
+Tooltip = "Giảm đồ hoạ thành Plastic tránh Tụt FPS",
 Callback = function(Value)
 if Value then
 for _, v in workspace.CurrentRooms:GetDescendants() do
@@ -2656,49 +2684,76 @@ end
 end
 end
 })
+ReachBox:AddSlider("PromptReachMult", {
+Text = "Prompt Reach Multiplier",
+Min = 1,
+Max = 3,
+Default = 1.5,
+Rounding = 1,
+Compact = true,
+Callback = function(Value)
+	if Toggles.PromptReach and Toggles.PromptReach.Value then
+		for _, v in pairs(workspace:GetDescendants()) do
+			if v:IsA("ProximityPrompt") then
+				local base = v:GetAttribute("Range_Old") or v:GetAttribute("Range") or v.MaxActivationDistance
+				if not v:GetAttribute("Range_Old") then
+					v:SetAttribute("Range_Old", base)
+				end
+				v.MaxActivationDistance = base * Value
+			end
+		end
+	end
+end,
+})
 ReachBox:AddToggle('PromptReach',{
 Text = "Prompt Reach",
 Default = false,
 Callback = function(Value)
-if Value then
-for _, v in pairs(workspace:GetDescendants()) do
-if v:IsA("ProximityPrompt") then
-v:SetAttribute("Range", v.MaxActivationDistance)
-v.MaxActivationDistance = v.MaxActivationDistance * 2
+	local mult = (Options.PromptReachMult and Options.PromptReachMult.Value) or 1.5
+	for _, v in pairs(workspace:GetDescendants()) do
+		if v:IsA("ProximityPrompt") then
+			if not v:GetAttribute("Range_Old") then
+				v:SetAttribute("Range_Old", v.MaxActivationDistance)
+			end
+			local base = v:GetAttribute("Range_Old")
+			v.MaxActivationDistance = Value and (base * mult) or base
+		end
+	end
 end
-end
-else
-for _, v in pairs(workspace:GetDescendants()) do
-if v:IsA("ProximityPrompt") then
-v.MaxActivationDistance = v:GetAttribute("Range") or v.MaxActivationDistance
-end
-end
-end
+})
+ReachBox:AddToggle('InstantPrompts',{
+Text = "Instant Prompts",
+Default = false,
+Tooltip = "HoldDuration = 0 for all prompts",
+Callback = function(Value)
+	for _, v in pairs(workspace:GetDescendants()) do
+		if v:IsA("ProximityPrompt") then
+			if not v:GetAttribute("Hold_Old") then
+				v:SetAttribute("Hold_Old", v.HoldDuration)
+			end
+			v.HoldDuration = Value and 0 or (v:GetAttribute("Hold_Old") or 0)
+		end
+	end
 end
 })
 ReachBox:AddToggle('PromptClip',{
 Text = "Prompt Clip",
 Default = false,
 Callback = function(Value)
-if Value then
-for _, v in pairs(workspace:GetDescendants()) do
-if v:IsA("ProximityPrompt") then
-v:SetAttribute("Clip", v.RequiresLineOfSight)
-v.RequiresLineOfSight = false
-end
-end
-else
-for _, v in pairs(workspace:GetDescendants()) do
-if v:IsA("ProximityPrompt") then
-v.RequiresLineOfSight = v:GetAttribute("Clip") or true
-end
-end
-end
+	for _, v in pairs(workspace:GetDescendants()) do
+		if v:IsA("ProximityPrompt") then
+			if not v:GetAttribute("Clip") then
+				v:SetAttribute("Clip", v.RequiresLineOfSight)
+			end
+			v.RequiresLineOfSight = Value and false or (v:GetAttribute("Clip") \~= false)
+		end
+	end
 end
 })
 ReachBox:AddToggle('DoorReach',{
 Text = "Door Reach",
-Default = false
+Default = false,
+Tooltip = "Mở cửa từ phạm vi cửa",
 })
 PlayerColor = Color3.fromRGB(150, 150, 150)
 ESPBox:AddToggle('Player', {
@@ -2989,7 +3044,7 @@ if Toggles.DeleteFigureFE.Value and Figures then
 for _, v in pairs(Figures) do
 local Root = v:FindFirstChild("Root")
 if not IsNetworkOwner then
-Notify("Sorry your executor wont support Delete Figure Because isnetworkowner", 5)
+Notify("Xin lỗi Bạn! executor không hỗ trợ Delete Figure Vì isnetworkowner", 5)
 Toggles.DeleteFigureFE:SetValue(false)
 end
 if Root and isnetworkowner(Root) then
@@ -3142,27 +3197,35 @@ local localInput = flatCam:VectorToObjectSpace(moveDir)
 LocalPlayer.Character.HumanoidRootPart:FindFirstChild("FlightVelocity").Velocity = Camera.CFrame:VectorToWorldSpace(localInput) * Options.FlightSpeed.Value
 end
 if Toggles.Godmode.Value then
-if RemotesFolder.Name == "RemotesFolder" then
-if not Toggles.FigureHearing.Value then
-Notify("Enabled Figure Hearing Automaticlly cause Godmode needs it", 3)
-Toggles.FigureHearing:SetValue(true)
-end
-if LocalPlayer.Character.LowerTorso.Root.C1 ~= CFrame.new(0, -2.3, 0) then
-LocalPlayer.Character.LowerTorso.Root.C1 = CFrame.new(0, -2.3, 0)
-end
-if LocalPlayer.Character.Humanoid.HipHeight ~= 0.22 then
-LocalPlayer.Character.Humanoid.HipHeight = 0.22
-end
-if LocalPlayer.Character.Collision.Size ~= Vector3.new(1, 1, 4) then
-LocalPlayer.Character.Collision.Size = Vector3.new(1, 1, 4)
-end
-if LocalPlayer.Character.Collision.CollisionCrouch.Size ~= Vector3.new(1, 1, 4) then
-LocalPlayer.Character.Collision.CollisionCrouch.Size = Vector3.new(1, 1, 4)
-end
-end
-if (Floor.Value == "Fools" or RemotesFolder.Name == "Bricks") and not Toggles.NoClip.Value then
-Toggles.NoClip:SetValue(true)
-end
+	local char = LocalPlayer.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	local coll = char and char:FindFirstChild("Collision")
+	if root and coll then
+		SpoofRayParams.FilterDescendantsInstances = { char }
+		local hit = workspace:Raycast(root.Position, Vector3.new(0, -1000, 0), SpoofRayParams)
+		if hit then
+			coll.Position = root.Position - Vector3.new(0, hit.Distance - 0.9, 0)
+			coll.CanCollide = false
+			if coll:FindFirstChild("CollisionCrouch") then
+				coll.CollisionCrouch.CanCollide = false
+			end
+			local clone = char:FindFirstChild("CollisionClone")
+			if not clone and char:FindFirstChild("CollisionPart") then
+				clone = char.CollisionPart:Clone()
+				clone.Name = "CollisionClone"
+				clone.CanCollide = false
+				clone.Anchored = false
+				clone.Parent = char
+				if clone:FindFirstChild("CollisionCrouch") then
+					clone.CollisionCrouch:Destroy()
+				end
+			end
+			if clone then
+				clone.Position = coll.Position + Vector3.new(0, 2.5, 0)
+				clone.CanCollide = false
+			end
+		end
+	end
 end
 if not LocalPlayer.Character:FindFirstChild("CollisionClone") then
 if LocalPlayer.Character:FindFirstChild("CollisionPart") then
@@ -3237,77 +3300,96 @@ PL:FireServer(Code)
 end
 end
 end
-if Toggles.DoorReach.Value and DoorReach > 0.2 then
-DoorReach = 0
-local Rooms = workspace:FindFirstChild("CurrentRooms")
-local Room = Rooms and Rooms:FindFirstChild(tostring(tonumber(LatestRoom.Value) or 0))
-local Door = Room and Room:FindFirstChild("Door")
-if Door and Door:FindFirstChild("Door") and Door.Parent and Door.Parent.Name ~= "101" and GetDistanceToPlayer(Door.Door.Position) < 30 then
-Door.ClientOpen:FireServer()
-end
+if Toggles.DoorReach.Value and DoorReach > 0.15 then
+	DoorReach = 0
+	local Rooms = workspace:FindFirstChild("CurrentRooms")
+	local Room = Rooms and Rooms:FindFirstChild(tostring(tonumber(LatestRoom.Value) or 0))
+	local Door = Room and Room:FindFirstChild("Door")
+	if Door then
+		for _, p in ipairs(Door:GetDescendants()) do
+			if p:IsA("ProximityPrompt") then
+				if not p:GetAttribute("DoorRange_Old") then
+					p:SetAttribute("DoorRange_Old", p.MaxActivationDistance)
+				end
+				p.MaxActivationDistance = math.max(p:GetAttribute("DoorRange_Old") * 2.5, 30)
+			end
+		end
+		local doorPart = Door:FindFirstChild("Door")
+		if doorPart and Door.Parent and Door.Parent.Name \~= "101" and GetDistanceToPlayer(doorPart.Position) < 30 then
+			if Door:FindFirstChild("ClientOpen") then
+				Door.ClientOpen:FireServer()
+			end
+		end
+	end
 end
 if Toggles.NoAcc.Value then
-if not Toggles.Flight.Value then
-if LocalPlayer.Character.HumanoidRootPart.CustomPhysicalProperties ~= PhysicalProperties.new(100, 0.1, 0.1, 0.1, 0.1) then
-LocalPlayer.Character.HumanoidRootPart.CustomPhysicalProperties = PhysicalProperties.new(100, 0.1, 0.1, 0.1, 0.1)
-end
-end
+	if not Toggles.Flight.Value then
+		if LocalPlayer.Character.HumanoidRootPart.CustomPhysicalProperties \~= PhysicalProperties.new(100, 0.1, 0.1, 0.1, 0.1) then
+			LocalPlayer.Character.HumanoidRootPart.CustomPhysicalProperties = PhysicalProperties.new(100, 0.1, 0.1, 0.1, 0.1)
+		end
+	end
 end
 if Toggles.EnableJump.Value then
-if not LocalPlayer.Character:GetAttribute("CanJump") then
-LocalPlayer.Character:SetAttribute("CanJump",true)
+	if not LocalPlayer.Character:GetAttribute("CanJump") then
+		LocalPlayer.Character:SetAttribute("CanJump", true)
+	end
 end
+if (Toggles.AutoInteract and Toggles.AutoInteract.Value)
+	or (Options.AutoInteractKeybind and Options.AutoInteractKeybind:GetState()) then
+	AutoInteract = AutoInteract + (dt or 0.016)
+	local interactDelay = Options.AutoInteractDelay and Options.AutoInteractDelay.Value or 0.06
+	if AutoInteract > interactDelay then
+		AutoInteract = 0
+		local char = LocalPlayer.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		local fireppFunc = Firepp or fireproximityprompt
+		if root and fireppFunc then
+			local hrpPos = root.Position
+			local reachDist = Options.AutoInteractreach and Options.AutoInteractreach.Value or 12
+			local rooms = workspace:FindFirstChild("CurrentRooms")
+			if rooms then
+				for _, prompt in ipairs(rooms:GetDescendants()) do
+					if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+						if PromptIgnore[prompt.Name] then continue end
+						local parent = prompt.Parent
+						if not parent then continue end
+						if parent.Name == "Padlock" or parent:GetAttribute("JeffShop") then continue end
+						if parent.Name == "KeyObtainFake" then continue end
+						if parent.Name == "Mandrake" then continue end
+						if parent.Name == "GoldPile" and Floor and Floor.Value == "Fools" then continue end
+						if prompt:GetAttribute("InfItems") and prompt.Name \~= "InfPrompt" then continue end
+						local last = AutoInteractCooldowns[prompt]
+						if last and (tick() - last) < 0.2 then continue end
+						local targetPart = parent:IsA("BasePart") and parent
+							or (parent:IsA("Model") and (parent.PrimaryPart or parent:FindFirstChildWhichIsA("BasePart")))
+						if targetPart and (hrpPos - targetPart.Position).Magnitude <= reachDist then
+							pcall(fireppFunc, prompt)
+							AutoInteractCooldowns[prompt] = tick()
+						end
+					end
+				end
+			end
+		end
+	end
 end
-if Toggles.AutoInteract and Toggles.AutoInteract.Value then
-AutoInteract = AutoInteract + (dt or 0.016)
-local interactDelay = Options.AutoInteractDelay and Options.AutoInteractDelay.Value or 0.05
-if AutoInteract > interactDelay then
-AutoInteract = 0
-if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-local hrpPos = LocalPlayer.Character.HumanoidRootPart.Position
-local reachDist = Options.AutoInteractreach and Options.AutoInteractreach.Value or 12
-local fireppFunc = Firepp or fireproximityprompt
-for i = #Interactions, 1, -1 do
-local prompt = Interactions[i]
-if not prompt or not prompt.Parent then
-table.remove(Interactions, i)
-continue
-end
-if (prompt.Parent.Name == "GoldPile" and Floor and Floor.Value == "Fools") or prompt.Parent.Name == "KeyObtainFake" then
-continue
-end
-if prompt.Parent.Parent and prompt.Parent.Parent.Parent and prompt.Parent.Parent.Parent.Name == "ItemSpawns" then
-continue
-end
-if prompt:GetAttribute("InfItems") and prompt.Name ~= "InfPrompt" then
-continue
-end
-if prompt.Parent.Name == "Mandrake" then
-continue
-end
-if prompt:GetAttribute("Interactions") and prompt:GetAttribute("Interactions") > 0 then
-table.remove(Interactions, i)
-continue
-end
-if prompt.Parent:IsA("BasePart") or prompt.Parent:IsA("Model") then
-local TargetPart = prompt.Parent:IsA("BasePart") and prompt.Parent or (prompt.Parent.PrimaryPart or prompt.Parent:FindFirstChildWhichIsA("BasePart"))
-if TargetPart then
-if (hrpPos - TargetPart.Position).Magnitude <= reachDist then
-if not prompt.Enabled then
-prompt.Enabled = true
-end
-if fireppFunc then
-fireppFunc(prompt)
-else
-prompt:InputHoldBegin()
-prompt:InputHoldEnd(prompt.HoldDuration or 0)
-end
-end
-end
-end
-end
-end
-end
+if Toggles.FarmGlitchCube and Toggles.FarmGlitchCube.Value then
+	local fireppFunc = Firepp or fireproximityprompt
+	local char = LocalPlayer.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if root and fireppFunc then
+		for _, obj in ipairs(workspace:GetDescendants()) do
+			if obj.Name == "GlitchCube" then
+				local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+				if prompt and prompt.Enabled then
+					local last = AutoInteractCooldowns[prompt]
+					if not last or (tick() - last) >= 0.3 then
+						pcall(fireppFunc, prompt)
+						AutoInteractCooldowns[prompt] = tick()
+					end
+				end
+			end
+		end
+	end
 end
 if Toggles.NoFog.Value then
 if Lighting.FogEnd < 100000 then
