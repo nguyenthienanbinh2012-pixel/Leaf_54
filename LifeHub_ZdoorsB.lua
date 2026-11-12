@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
 repeat task.wait() until game:IsLoaded()
 if game:GetService("Players").LocalPlayer:GetAttribute("LeafLoaded") then
 if getgenv().Library then
