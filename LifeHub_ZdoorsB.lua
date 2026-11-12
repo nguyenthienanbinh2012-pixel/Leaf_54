@@ -2745,7 +2745,7 @@ Callback = function(Value)
 			if not v:GetAttribute("Clip") then
 				v:SetAttribute("Clip", v.RequiresLineOfSight)
 			end
-			v.RequiresLineOfSight = Value and false or (v:GetAttribute("Clip") \~= false)
+			v.RequiresLineOfSight = Value and false or (v:GetAttribute("Clip") ~= false)
 		end
 	end
 end
@@ -3315,7 +3315,7 @@ if Toggles.DoorReach.Value and DoorReach > 0.15 then
 			end
 		end
 		local doorPart = Door:FindFirstChild("Door")
-		if doorPart and Door.Parent and Door.Parent.Name \~= "101" and GetDistanceToPlayer(doorPart.Position) < 30 then
+		if doorPart and Door.Parent and Door.Parent.Name ~= "101" and GetDistanceToPlayer(doorPart.Position) < 30 then
 			if Door:FindFirstChild("ClientOpen") then
 				Door.ClientOpen:FireServer()
 			end
@@ -3324,7 +3324,7 @@ if Toggles.DoorReach.Value and DoorReach > 0.15 then
 end
 if Toggles.NoAcc.Value then
 	if not Toggles.Flight.Value then
-		if LocalPlayer.Character.HumanoidRootPart.CustomPhysicalProperties \~= PhysicalProperties.new(100, 0.1, 0.1, 0.1, 0.1) then
+		if LocalPlayer.Character.HumanoidRootPart.CustomPhysicalProperties ~= PhysicalProperties.new(100, 0.1, 0.1, 0.1, 0.1) then
 			LocalPlayer.Character.HumanoidRootPart.CustomPhysicalProperties = PhysicalProperties.new(100, 0.1, 0.1, 0.1, 0.1)
 		end
 	end
@@ -3357,7 +3357,7 @@ if (Toggles.AutoInteract and Toggles.AutoInteract.Value)
 						if parent.Name == "KeyObtainFake" then continue end
 						if parent.Name == "Mandrake" then continue end
 						if parent.Name == "GoldPile" and Floor and Floor.Value == "Fools" then continue end
-						if prompt:GetAttribute("InfItems") and prompt.Name \~= "InfPrompt" then continue end
+						if prompt:GetAttribute("InfItems") and prompt.Name ~= "InfPrompt" then continue end
 						local last = AutoInteractCooldowns[prompt]
 						if last and (tick() - last) < 0.2 then continue end
 						local targetPart = parent:IsA("BasePart") and parent
