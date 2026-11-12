@@ -720,6 +720,7 @@ table.insert(Anchors,v)
 end
 end
 end
+end
 })
 MinesFloor:AddToggle('AntiSeekFlood',{
 Text = "Anti Seek Flood",
