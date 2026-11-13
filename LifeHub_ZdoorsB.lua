@@ -3153,7 +3153,7 @@ BypassEntityBox:AddToggle("VirtualCollisionFigure", {
 			if figure then
 				for _, v in pairs(figure:GetDescendants()) do
 					if v:IsA("BasePart") then
-						if v:GetAttribute("Clip") \~= nil then
+						if v:GetAttribute("Clip") ~= nil then
 							v.CanCollide = v:GetAttribute("Clip")
 							v.CanTouch = true
 						end
