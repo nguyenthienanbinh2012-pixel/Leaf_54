@@ -109,8 +109,10 @@ AutoShow = true,
 NotifySide = "Right",
 ShowCustomCursor = true,
 Footer = "obsidian-ui",
-CornerRadius = 6,
+CornerRadius = 8,
 })
+Window.MainFrame.Size = UDim2.fromOffset(680, 480)
+Window:SetSidebarWidth(180)
 if Library.KeybindFrame then
 if getgenv().LeafHub_KeybindPos then
 local p = getgenv().LeafHub_KeybindPos
@@ -1278,41 +1280,41 @@ end))
 end
 end
 PlayerBox:AddToggle('Godmode',{
-Text = "Position Spoof",
-Default = false,
-Tooltip = "Đánh Lừa Hitbox Vị trí lên Sever,Tránh Entity Gây sát thương lên Part",
-Risky = true,
-Callback = function(Value)
-	local char = LocalPlayer.Character
-	if not char then return end
-	local root = char:FindFirstChild("HumanoidRootPart")
-	local coll = char:FindFirstChild("Collision")
-	if not Value then
-		if coll and root then
-			coll.Position = root.Position + Vector3.new(0, 0.18, 0)
-			coll.CanCollide = true
-			if coll:FindFirstChild("CollisionCrouch") then
-				coll.CollisionCrouch.CanCollide = true
+	Text = "Position Spoof",
+	Default = false,
+	Tooltip = "Server thấy character dưới đất — tránh Rush-like (Abysall)",
+	Risky = true,
+	Callback = function(Value)
+		local char = LocalPlayer.Character
+		if not char then return end
+		local root = char:FindFirstChild("HumanoidRootPart")
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		local floorVal = Floor and Floor.Value
+		-- không spoof trên Fools / OldHotel bằng offset này
+		if floorVal == "Fools" or floorVal == "OldHotel" then
+			return
+		end
+		if root and hum then
+			if Value then
+				root.CFrame = root.CFrame * CFrame.new(0, -2.346, 0)
+				hum.HipHeight = 0.05
+				if RemotesFolder and RemotesFolder:FindFirstChild("Crouch") then
+					RemotesFolder.Crouch:FireServer(true, true)
+				end
+			else
+				root.CFrame = root.CFrame * CFrame.new(0, 2.346, 0)
+				hum.HipHeight = 2.396
 			end
 		end
-		if char:FindFirstChild("Humanoid") then
-			char.Humanoid.HipHeight = 2.4
-		end
-		if char:FindFirstChild("LowerTorso") and char.LowerTorso:FindFirstChild("Root") then
-			char.LowerTorso.Root.C1 = CFrame.new(0, 0, 0)
-		end
 	end
-end
 }):AddKeyPicker("GodmodeKeybind", {
-Default = "G",
-SyncToggleState = true,
-Mode = "Toggle",
-Text = "Position Spoof",
-NoUI = false,
-Callback = function(Value)
-end,
-ChangedCallback = function(NewKey, NewModifiers)
-end,
+	Default = "G",
+	SyncToggleState = true,
+	Mode = "Toggle",
+	Text = "Position Spoof",
+	NoUI = false,
+	Callback = function() end,
+	ChangedCallback = function() end,
 })
 local PromptIgnore = {
 	HidePrompt = true,
@@ -1328,7 +1330,10 @@ local PromptIgnore = {
 	DialoguePrompt = true,
 	DonatePrompt = true,
 	ToolEventPrompt = true,
-}
+	SeatPrompt = true,
+	SitPrompt = true,
+	ChairPrompt = true,
+	}
 Interactions = {}
 local AutoInteractCooldowns = {}
 local SpoofRayParams = RaycastParams.new()
@@ -1387,29 +1392,51 @@ Callback = function(Value)
 end,
 })
 
+local GlitchFarmProgress = 0
+local GlitchFarmRoom = nil
+local GlitchFarmActive = false
+
 AutoBox:AddToggle("FarmGlitchCube", {
-Text = "Farm Glitch Cube",
-Default = false,
-Risky = true,
-Tooltip = "Auto farm GlitchCube / Glitch Fragment (lấy Glitch của game)",
-Callback = function(Value)
-end,
+	Text = "Farm Glitch Cube",
+	Default = false,
+	Risky = true,
+	Tooltip = "Dịch xuống -3.9Y mỗi frame để Glitch Entity Xuất Hiện Để Farm Glitch Cube",
+	Callback = function(Value)
+		GlitchFarmActive = Value and true or false
+		if not Value then
+			GlitchFarmProgress = 0
+			GlitchFarmRoom = nil
+			if Notify then Notify("Farm Glitch Cube: ĐÃ DỪNG", 3) end
+		else
+			GlitchFarmProgress = 0
+			local roomAttr = LocalPlayer:GetAttribute("CurrentRoom")
+			GlitchFarmRoom = roomAttr
+			-- nếu thấy GlitchCube trong map thì lấy số phòng gần nhất
+			pcall(function()
+				for _, obj in ipairs(workspace:GetDescendants()) do
+					if obj.Name == "GlitchCube" then
+						local model = obj:FindFirstAncestorOfClass("Model")
+						local room = model and model:FindFirstAncestorWhichIsA("Model")
+						-- CurrentRooms child name thường là số phòng
+						local rooms = workspace:FindFirstChild("CurrentRooms")
+						if rooms then
+							for _, r in ipairs(rooms:GetChildren()) do
+								if obj:IsDescendantOf(r) then
+									GlitchFarmRoom = r.Name
+									break
+								end
+							end
+						end
+						break
+					end
+				end
+			end)
+			if Notify then
+				Notify("Farm Glitch Cube: BẮT ĐẦU (Room " .. tostring(GlitchFarmRoom or "?") .. ") 0%", 3)
+			end
+		end
+	end,
 })
-task.defer(function()
-	task.wait(0.6)
-	pcall(function()
-		local t = Toggles.FarmGlitchCube
-		if not t then return end
-		local lbl = t.TextLabel
-		if not lbl and t.Object then
-			lbl = t.Object:FindFirstChildWhichIsA("TextLabel", true)
-		end
-		if lbl then
-			lbl.RichText = true
-			lbl.Text = '<font color="rgb(255,20,147)">Farm Glitch Cube</font>'
-		end
-	end)
-end)
 AutoBox:AddDivider()
 AutoBox:AddToggle('AutoLibraryCode',{
 Text = "Auto Library Code",
@@ -2556,9 +2583,9 @@ end))
 end)
 CameraBox:AddSlider("FOV", {
 Text = "FOV",
-Default = 70,
+Default = 80,
 Min = 70,
-Max = 120,
+Max = 140,
 Rounding = 1,
 Compact = false,
 Callback = function(Value)
@@ -2604,7 +2631,7 @@ CameraBox:AddSlider("Z", {
 Text = "Z",
 Default = 4,
 Min = -10,
-Max = 10,
+Max = 15,
 Rounding = 1,
 Compact = false,
 Callback = function(Value)
@@ -2642,16 +2669,23 @@ ChangedCallback = function(NewKey, NewModifiers)
 end,
 })
 CameraBox:AddToggle('NoScenes',{
-Text = "No Cutscenes",
-Default = false,
-Callback = function(Value)
-local Cutscene = RemoteListener:FindFirstChild("Cutscenes") or RemoteListener:FindFirstChild("Cutscenes_")
-if Value then
-Cutscene.Name = "Cutscenes_"
-else
-Cutscene.Name = "Cutscenes"
-end
-end
+	Text = "No Cutscenes",
+	Default = false,
+	Tooltip = "Tắt Cảnh Animation không cần thiết",
+	Callback = function(Value)
+		pcall(function()
+			local rl = RemoteListener
+			if not rl and LocalPlayer.PlayerGui:FindFirstChild("MainUI") then
+				local mg = LocalPlayer.PlayerGui.MainUI.Initiator:FindFirstChild("Main_Game")
+				rl = mg and mg:FindFirstChild("RemoteListener")
+			end
+			if not rl then return end
+			local cut = rl:FindFirstChild("Cutscenes") or rl:FindFirstChild("Cutscenes_")
+			if cut then
+				cut.Name = Value and "Cutscenes_" or "Cutscenes"
+			end
+		end)
+	end
 })
 NotifyBox:AddDropdown("Notify", {
 Values = { "Rush","Ambush","GlitchRush","GlitchAmbush","A-60","A-120","Eyes","Blitz","Lookman","Jeff"},
@@ -3473,32 +3507,57 @@ end
 if Toggles.Godmode.Value then
 	local char = LocalPlayer.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	local coll = char and char:FindFirstChild("Collision")
-	if root and coll then
-		SpoofRayParams.FilterDescendantsInstances = { char }
-		local hit = workspace:Raycast(root.Position, Vector3.new(0, -1000, 0), SpoofRayParams)
-		if hit then
-			coll.Position = root.Position - Vector3.new(0, hit.Distance - 0.9, 0)
-			coll.CanCollide = false
-			if coll:FindFirstChild("CollisionCrouch") then
-				coll.CollisionCrouch.CanCollide = false
-			end
-			local clone = char:FindFirstChild("CollisionClone")
-			if not clone and char:FindFirstChild("CollisionPart") then
-				clone = char.CollisionPart:Clone()
-				clone.Name = "CollisionClone"
-				clone.CanCollide = false
-				clone.Anchored = false
-				clone.Parent = char
-				if clone:FindFirstChild("CollisionCrouch") then
-					clone.CollisionCrouch:Destroy()
-				end
-			end
-			if clone then
-				clone.Position = coll.Position + Vector3.new(0, 2.5, 0)
-				clone.CanCollide = false
+	local collPart = char and char:FindFirstChild("CollisionPart")
+	local floorVal = Floor and Floor.Value
+	local isFool = (floorVal == "Fools" or floorVal == "OldHotel")
+	-- CollisionClone
+	if char and not char:FindFirstChild("CollisionClone") then
+		local src = char:FindFirstChild("CollisionPart") or coll
+		if src then
+			local clone = src:Clone()
+			clone.Name = "CollisionClone"
+			clone.CanCollide = false
+			clone.Anchored = false
+			clone.Parent = char
+			if clone:FindFirstChild("CollisionCrouch") then
+				clone.CollisionCrouch:Destroy()
 			end
 		end
+	end
+	local clone = char and char:FindFirstChild("CollisionClone")
+
+	if not isFool and root and hum then
+		-- giữ hip thấp
+		if hum.HipHeight ~= 0.05 then
+			hum.HipHeight = 0.05
+		end
+		-- C1 offset (Abysall)
+		if char:FindFirstChild("LowerTorso") and char.LowerTorso:FindFirstChild("Root") then
+			local orig = getgenv().LeafOriginalC1 or CFrame.new()
+			char.LowerTorso.Root.C1 = orig * CFrame.new(0, -2.346, 0)
+		end
+		-- Collision Y spoof
+		local SpoofY = 2.328
+		if coll then
+			coll.Position = root.Position + Vector3.new(0, SpoofY, 0)
+			coll.CanCollide = false
+			if coll:FindFirstChild("CollisionCrouch") then
+				coll.CollisionCrouch.Position = root.Position + Vector3.new(0, 1.328, 0)
+				coll.CollisionCrouch.CanCollide = false
+			end
+		end
+		if collPart then
+			collPart.Position = root.Position + Vector3.new(0, SpoofY, 0)
+		end
+		if clone then
+			clone.Position = root.Position + Vector3.new(0, SpoofY, 0)
+			clone.CanCollide = false
+		end
+	elseif isFool and root and coll then
+		-- Fools: SpoofOffset kiểu entity  — chỉ đẩy Collision cao nếu cần
+		coll.CanCollide = false
 	end
 end
 if not LocalPlayer.Character:FindFirstChild("CollisionClone") then
@@ -3513,9 +3572,6 @@ if CollisionClone:FindFirstChild("CollisionCrouch") then
 CollisionClone:FindFirstChild("CollisionCrouch"):Destroy()
 end
 end
-end
-if Toggles.NoScenes.Value and LatestRoom.Value == 100 then
-Toggles.NoScenes:SetValue(false)
 end
 if not HookMeta then
 if Toggles.FigureHearing.Value then
@@ -3626,6 +3682,9 @@ if (Toggles.AutoInteract and Toggles.AutoInteract.Value)
 					if prompt:IsA("ProximityPrompt") and prompt.Enabled then
 						if PromptIgnore[prompt.Name] then continue end
 						local parent = prompt.Parent
+						if parent.Name == "SeatPart" or parent.Name == "Seat" or parent.Name == "Chair"
+	or parent:IsA("Seat") or parent:IsA("VehicleSeat") then
+										else
 						if not parent then continue end
 						if parent.Name == "Padlock" or parent:GetAttribute("JeffShop") then continue end
 						if parent.Name == "KeyObtainFake" then continue end
@@ -3646,25 +3705,82 @@ if (Toggles.AutoInteract and Toggles.AutoInteract.Value)
 		end
 	end
 end
-if Toggles.FarmGlitchCube and Toggles.FarmGlitchCube.Value then
-	local fireppFunc = Firepp or fireproximityprompt
+if Toggles.FarmGlitchCube and Toggles.FarmGlitchCube.Value and GlitchFarmActive then
 	local char = LocalPlayer.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
-	if root and fireppFunc then
-		for _, obj in ipairs(workspace:GetDescendants()) do
-			if obj.Name == "GlitchCube" then
-				local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
-				if prompt and prompt.Enabled then
-					local last = AutoInteractCooldowns[prompt]
-					if not last or (tick() - last) >= 0.3 then
-						pcall(fireppFunc, prompt)
-						AutoInteractCooldowns[prompt] = tick()
+	if root then
+		-- mỗi frame xuống -3.9 Y (Glitch entity kéo về)
+		root.CFrame = root.CFrame * CFrame.new(0, -3.9, 0)
+
+		-- phát hiện Glitch entity / cube để tính +20%
+		local pulled = false
+		local roomName = GlitchFarmRoom or LocalPlayer:GetAttribute("CurrentRoom") or "?"
+		for _, obj in ipairs(workspace:GetChildren()) do
+			if obj.Name == "Glitch" or obj.Name == "GlitchCube" or obj.Name:find("Glitch") then
+				pulled = true
+				local rooms = workspace:FindFirstChild("CurrentRooms")
+				if rooms then
+					for _, r in ipairs(rooms:GetChildren()) do
+						if obj:IsDescendantOf(r) then
+							roomName = r.Name
+							GlitchFarmRoom = r.Name
+							break
+						end
+					end
+				end
+				break
+			end
+		end
+		-- cũng quét CurrentRooms
+		if not pulled then
+			local rooms = workspace:FindFirstChild("CurrentRooms")
+			if rooms then
+				for _, r in ipairs(rooms:GetDescendants()) do
+					if r.Name == "GlitchCube" or r.Name == "Glitch" then
+						pulled = true
+						local roomModel = r
+						while roomModel and roomModel.Parent \~= rooms do
+							roomModel = roomModel.Parent
+						end
+						if roomModel then
+							roomName = roomModel.Name
+							GlitchFarmRoom = roomName
+						end
+						break
+					end
+				end
+			end
+		end
+
+		if pulled and GlitchFarmProgress < 100 then
+			-- mỗi lần “kéo về” +20% (debounce ~1s để không spam 100% 1 frame)
+			if not GlitchFarmActive then
+			else
+				if not rawget(getfenv(), "_GlitchFarmLast") then
+					getgenv()._GlitchFarmLast = 0
+				end
+				if tick() - (getgenv()._GlitchFarmLast or 0) >= 1.0 then
+					getgenv()._GlitchFarmLast = tick()
+					GlitchFarmProgress = math.min(100, GlitchFarmProgress + 20)
+					if Notify then
+						Notify("Glitch farm: " .. tostring(GlitchFarmProgress) .. "% (Room " .. tostring(roomName) .. ")", 2)
+					end
+					if GlitchFarmProgress >= 100 then
+						if Notify then
+							Notify("Glitch Cube đã spam trong Room " .. tostring(roomName), 5)
+						end
+						GlitchFarmActive = false
+						GlitchFarmProgress = 0
+						if Toggles.FarmGlitchCube then
+							Toggles.FarmGlitchCube:SetValue(false)
+						end
 					end
 				end
 			end
 		end
 	end
 end
+
 -- Wasteful Tool Others (Leaf Spam Other Tools)
 do
 	local wasteOn = Toggles.WastefulToolOthers and Toggles.WastefulToolOthers.Value
