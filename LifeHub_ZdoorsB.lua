@@ -4301,6 +4301,7 @@ if LocalPlayer.Character.Collision:FindFirstChild("CollisionCrouch") then
 LocalPlayer.Character.Collision.CollisionCrouch.CanCollide = LocalPlayer.Character.Collision.CanCollide
 end
 end
+end
 end))
 table.insert(Connections, RunService.RenderStepped:Connect(function()
 if Toggles.AutoRooms.Value then
