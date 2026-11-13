@@ -3075,6 +3075,106 @@ task.defer(function()
 			lbl.Text = '<font color="rgb(255,40,40)">Lower body avoid Figure</font>'
 		end
 	end)
+-- Virtual collision Figure (3 cơ chế ghép nguyên bản)
+BypassEntityBox:AddToggle("VirtualCollisionFigure", {
+	Text = "Virtual collision Figure",
+	Default = false,
+	Risky = true,
+	Tooltip = "Làm Va Chạm Ảo Hitbox Part khi va chạm Figure Lên sever|Tránh Figure Va chạm",
+	Callback = function(Value)
+		local char = LocalPlayer.Character
+		if not char then return end
+		local Collision = char:FindFirstChild("Collision")
+		local RootPart = char:FindFirstChild("HumanoidRootPart")
+		local Humanoid = char:FindFirstChildOfClass("Humanoid")
+		if not Collision or not RootPart or not Humanoid then return end
+
+		-- figure gần nhất
+		local figure = nil
+		for _, name in ipairs({ "FigureRig", "FigureRagdoll", "Figure" }) do
+			local f = workspace:FindFirstChild(name)
+			if f then figure = f break end
+		end
+		if not figure then
+			for _, obj in ipairs(workspace:GetChildren()) do
+				if obj.Name == "FigureRig" or obj.Name == "FigureRagdoll" or obj.Name == "Figure" then
+					figure = obj
+					break
+				end
+			end
+		end
+
+		-- Script table giả (map LatestRoom + Collision) — chỉ để đoạn gốc chạy đúng tên
+		local Script = {
+			LatestRoom = LatestRoom,
+			Collision = Collision,
+		}
+		shared.Humanoid = Humanoid
+
+		if Value then
+			-- ===== ACTIVATE: 3 đoạn nguyên văn =====
+
+			-- [ĐOẠN 1] Abysall — nâng Collision +200 (1 lần lúc bật; giữ mỗi frame ở Bước 2)
+			Collision.Position = RootPart.Position + Vector3.new(0, 200, 0)
+
+			-- [ĐOẠN 2] mspaint Floor Fools — GIỮ BUG `or` (luôn return sớm)
+			if figure then
+				if Script.LatestRoom.Value ~= 50 or Script.LatestRoom.Value ~= 100 then
+					-- return sớm theo bug gốc — không chạy for
+				else
+					for _, v in pairs(figure:GetDescendants()) do
+						if v:IsA("BasePart") then
+							if not v:GetAttribute("Clip") then v:SetAttribute("Clip", v.CanCollide) end
+							v.CanTouch = false
+							task.spawn(function()
+								repeat task.wait() until (Script.LatestRoom.Value == 50 or Script.LatestRoom.Value == 100)
+								task.wait(5)
+								v.CanCollide = false
+							end)
+						end
+					end
+				end
+			end
+
+			-- [ĐOẠN 3] mspaint GodmodeNoclipBypassFools (bật)
+			shared.Humanoid.HipHeight = 3.01
+			task.wait()
+			Script.Collision.Position = Script.Collision.Position - Vector3.new(0, 8, 0)
+			task.wait()
+			shared.Humanoid.HipHeight = 3
+		else
+			-- ===== DEACTIVATE: đảo đoạn 3 + khôi phục Clip =====
+			shared.Humanoid.HipHeight = 3.01
+			task.wait()
+			Script.Collision.Position = Script.Collision.Position + Vector3.new(0, 8, 0)
+			task.wait()
+			shared.Humanoid.HipHeight = 3
+
+			if figure then
+				for _, v in pairs(figure:GetDescendants()) do
+					if v:IsA("BasePart") then
+						if v:GetAttribute("Clip") \~= nil then
+							v.CanCollide = v:GetAttribute("Clip")
+							v.CanTouch = true
+						end
+					end
+				end
+			end
+		end
+	end,
+})
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.VirtualCollisionFigure
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(255,20,147)">Virtual collision Figure</font>'
+		end
+	end)
+end)
 end)
 BypassEntityBox:AddToggle('EyesDamage',{
 Text = "Anti Eyes Damage",
@@ -3747,6 +3847,16 @@ end
 		-- Fools: SpoofOffset kiểu entity  — chỉ đẩy Collision cao nếu cần
 		coll.CanCollide = false
 	end
+-- Virtual collision Figure — [ĐOẠN 1] mỗi frame khi bật (Abysall)
+if Toggles.VirtualCollisionFigure and Toggles.VirtualCollisionFigure.Value then
+	local char = LocalPlayer.Character
+	local RootPart = char and char:FindFirstChild("HumanoidRootPart")
+	local Collision = char and char:FindFirstChild("Collision")
+	if RootPart and Collision then
+		-- Nguyên văn Abysall
+		Collision.Position = RootPart.Position + Vector3.new(0, 200, 0)
+	end
+end
 end
 if not LocalPlayer.Character:FindFirstChild("CollisionClone") then
 if LocalPlayer.Character:FindFirstChild("CollisionPart") then
