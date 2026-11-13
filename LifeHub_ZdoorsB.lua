@@ -4302,6 +4302,7 @@ LocalPlayer.Character.Collision.CollisionCrouch.CanCollide = LocalPlayer.Charact
 end
 end
 end
+end
 end))
 table.insert(Connections, RunService.RenderStepped:Connect(function()
 if Toggles.AutoRooms.Value then
