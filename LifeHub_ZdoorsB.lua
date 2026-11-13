@@ -882,7 +882,7 @@ local function getNextClosedDoor()
 	if not rooms then return nil end
 	for _, room in ipairs(rooms:GetChildren()) do
 		local roomNum = tonumber(room.Name)
-		if roomNum and roomNum \~= 100 and roomNum >= startRoom and roomNum < bestNumber then
+		if roomNum and roomNum ~= 100 and roomNum >= startRoom and roomNum < bestNumber then
 			local door = room:FindFirstChild("Door")
 			if door and door:IsA("Model") then
 				local openAttr = door:GetAttribute("Open")
@@ -3026,6 +3026,56 @@ v.Humanoid.Health = 0
 end
 end
 end))
+BypassEntityBox:AddToggle("SemiGod", {
+	Text = "Semi God",
+	Default = false,
+	Tooltip = "chỉ Tránh Ảnh hưởng Từ thực thể nhỏ không Hoàn Toàn Godmode",
+	Callback = function(Value)
+		local list = {
+			"Screech", "A90", "Dread", "Halt", "Jamming",
+			"BypassSurgeDamage", "Snare", "EyesDamage", "LookmanDamage",
+			"GloomEggDamage", "Giggle",
+		}
+		for _, name in ipairs(list) do
+			if Toggles[name] then
+				pcall(function()
+					Toggles[name]:SetValue(Value and true or false)
+				end)
+			end
+		end
+	end,
+})
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.SemiGod
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(255,215,0)">Semi God</font>'
+		end
+	end)
+end)
+BypassEntityBox:AddToggle("LowerBodyFigure", {
+	Text = "Lower body avoid Figure",
+	Default = false,
+	Risky = true,
+	Tooltip = "Hạ Nhân vật khi Figure Ở gần (≤15 studs)",
+})
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.LowerBodyFigure
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.TextSize = 12
+			lbl.Text = '<font color="rgb(255,40,40)">Lower body avoid Figure</font>'
+		end
+	end)
+end)
 BypassEntityBox:AddToggle('EyesDamage',{
 Text = "Anti Eyes Damage",
 Default = false
@@ -3615,6 +3665,34 @@ local localInput = flatCam:VectorToObjectSpace(moveDir)
 LocalPlayer.Character.HumanoidRootPart:FindFirstChild("FlightVelocity").Velocity = Camera.CFrame:VectorToWorldSpace(localInput) * Options.FlightSpeed.Value
 end
 if Toggles.Godmode.Value then
+	-- ===== Auto Position Spoof (Always On / Entity Spam) =====
+if Toggles.AutoPositionSpoof and Toggles.AutoPositionSpoof.Value then
+	local mode = "Entity Spam"
+	if Options.AutoPositionSpoofMode and Options.AutoPositionSpoofMode.Value then
+		mode = Options.AutoPositionSpoofMode.Value
+	end
+	if mode == "Always On" then
+		if Toggles.Godmode and not Toggles.Godmode.Value then
+			Toggles.Godmode:SetValue(true)
+		end
+		getgenv().LeafAutoSpoofed = true
+	else
+		local monsterAround = IsSpoofMonsterAround()
+		if monsterAround and not getgenv().LeafLastMonsterAround then
+			getgenv().LeafLastMonsterAround = true
+			getgenv().LeafAutoSpoofed = true
+			if Toggles.Godmode and not Toggles.Godmode.Value then
+				Toggles.Godmode:SetValue(true)
+			end
+		elseif (not monsterAround) and getgenv().LeafLastMonsterAround then
+			getgenv().LeafLastMonsterAround = false
+			if getgenv().LeafAutoSpoofed and Toggles.Godmode and Toggles.Godmode.Value then
+				Toggles.Godmode:SetValue(false)
+			end
+			getgenv().LeafAutoSpoofed = false
+		end
+	end
+end
 	local char = LocalPlayer.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -3682,6 +3760,45 @@ if CollisionClone:FindFirstChild("CollisionCrouch") then
 CollisionClone:FindFirstChild("CollisionCrouch"):Destroy()
 end
 end
+end
+-- Lower body avoid Figure (AN TOÀN — không trừ dồn mỗi frame)
+if Toggles.LowerBodyFigure and Toggles.LowerBodyFigure.Value then
+	local char = LocalPlayer.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if root then
+		local nearFig, figPos = false, nil
+		for _, obj in ipairs(workspace:GetChildren()) do
+			if obj.Name == "FigureRig" or obj.Name == "FigureRagdoll" then
+				local part = obj.PrimaryPart
+					or obj:FindFirstChild("Root")
+					or obj:FindFirstChildWhichIsA("BasePart")
+				if part then
+					local d = (part.Position - root.Position).Magnitude
+					if d <= 15 then
+						nearFig = true
+						figPos = part.Position
+						break
+					end
+				end
+			end
+		end
+		if nearFig and figPos then
+			-- Giữ Y = FigureY - 3.764 (cố định theo Figure, không rơi mãi)
+			local targetY = figPos.Y - 3.764
+			local pos = root.Position
+			local look = root.CFrame.LookVector
+			root.CFrame = CFrame.new(pos.X, targetY, pos.Z) * CFrame.Angles(0, math.atan2(-look.X, -look.Z), 0)
+			local coll = char:FindFirstChild("Collision")
+			if coll then
+				coll.CanCollide = false
+				coll.Position = root.Position + Vector3.new(0, 0.18, 0)
+			end
+			local cp = char:FindFirstChild("CollisionPart")
+			if cp then
+				cp.Position = root.Position + Vector3.new(0, 0.18, 0)
+			end
+		end
+	end
 end
 if not HookMeta then
 if Toggles.FigureHearing.Value then
@@ -3849,7 +3966,7 @@ if Toggles.FarmGlitchCube and Toggles.FarmGlitchCube.Value and GlitchFarmActive 
 					if r.Name == "GlitchCube" or r.Name == "Glitch" then
 						pulled = true
 						local roomModel = r
-						while roomModel and roomModel.Parent \~= rooms do
+						while roomModel and roomModel.Parent ~= rooms do
 							roomModel = roomModel.Parent
 						end
 						if roomModel then
@@ -3973,6 +4090,13 @@ if not LocalPlayer.Character:GetAttribute("Hiding") then
 MotorReplication:FireServer(-650)
 end
 end
+end
+if Toggles.Screech and Toggles.Screech.Value then
+	local cam = workspace.CurrentCamera
+	if cam then
+		local sc = cam:FindFirstChild("Screech")
+		if sc then pcall(function() sc:Destroy() end) end
+	end
 end
 if Toggles.FullBright.Value then
 if Lighting.Ambient ~= Color3.new(1, 1, 1) then
