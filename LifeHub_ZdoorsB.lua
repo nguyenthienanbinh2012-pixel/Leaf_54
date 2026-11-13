@@ -129,7 +129,7 @@ if PlaySound then
 local Sound = Instance.new("Sound", game:GetService("SoundService"))
 Sound.SoundId = "rbxassetid://101511361468852"
 Sound.PlaybackSpeed = 0.77
-Sound.Volume = 2
+Sound.Volume = 5
 Sound:Play()
 game:GetService("Debris"):AddItem(Sound, 3)
 end
@@ -195,7 +195,7 @@ return table.concat(Slot)
 end
 if workspace:FindFirstChild("Lobby") then
 local Tabs = {
-Main = Window:AddTab('Game', "star"),
+Main = Window:AddTab('Game', "Earth"),
 Settings = Window:AddTab('Settings',"settings"),
 }
 local Tp = Tabs.Main:AddLeftGroupbox("Teleport")
@@ -258,7 +258,7 @@ Library:SetNotifySide(Value)
 end,
 })
 MenuGroup:AddButton('Test Notification',function()
-Notify("Hello World",2)
+Notify("Hello World-Test",2)
 end)
 MenuGroup:AddDropdown("Library", {
 Values = { "Obsidian", "Linoria" },
@@ -344,11 +344,11 @@ end
 end
 InfCrucfixTable = {
 RushMoving = 90,
-AmbushMoving = 160,
-A60 = 140,
+AmbushMoving = 140,
+A60 = 110,
 A120 = 99,
-GlitchRush = 150,
-GlitchAmbush = 110,
+GlitchRush = 110,
+GlitchAmbush = 160,
 }
 local Firepp = fireproximityprompt
 local Require = require
@@ -494,10 +494,10 @@ end
 end
 end))
 local Tabs = {
-Main = Window:AddTab('Player', "User-round"),
+Main = Window:AddTab('Player', "User"),
 Bypass = Window:AddTab('Bypass', "ban"),
 Visuals = Window:AddTab('Visuals',"eye"),
-Floor = Window:AddTab('Floor', "Building-2"),
+Floor = Window:AddTab('Floor', "Building2"),
 Other = Window:AddTab('Other', "drama"),
 Settings = Window:AddTab('Settings',"settings"),
 }
@@ -593,7 +593,7 @@ table.insert(Connections, LocalPlayer.CharacterAdded:Connect(function()
 		end
 	end
 end))
-local BringBox = Tabs.Other:AddLeftGroupBox("Bring","magnet")
+local BringBox = Tabs.Other:AddLeftGroupbox("Bring","magnet")
 -- Helpers Bring / Orbit (Drops folder = item game đã drop)
 local isBringDropsRunning = false
 local OrbitDroppedItemsConnection = nil
