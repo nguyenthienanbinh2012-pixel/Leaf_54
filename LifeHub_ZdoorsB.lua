@@ -499,7 +499,7 @@ local Tabs = {
 Main = Window:AddTab('Player', "User"),
 Bypass = Window:AddTab('Bypass', "ban"),
 Visuals = Window:AddTab('Visuals',"eye"),
-Floor = Window:AddTab('Floor', "Building2"),
+Floor = Window:AddTab('Floor', "Building-2"),
 Other = Window:AddTab('Other', "drama"),
 Settings = Window:AddTab('Settings',"settings"),
 }
@@ -4299,6 +4299,10 @@ if LocalPlayer.Character:FindFirstChild("Collision") then
 LocalPlayer.Character.Collision.CanCollide = (LocalPlayer.Character.Collision.CollisionGroup == "PlayerCrouching" and false or LocalPlayer.Character.Collision.CollisionGroup ~= "PlayerCrouching" and true)
 if LocalPlayer.Character.Collision:FindFirstChild("CollisionCrouch") then
 LocalPlayer.Character.Collision.CollisionCrouch.CanCollide = LocalPlayer.Character.Collision.CanCollide
+end
+end
+end
+end
 end
 end
 end
