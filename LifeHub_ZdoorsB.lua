@@ -856,6 +856,81 @@ Func = function()
 RemotesFolder.Lobby:FireServer()
 end
 })
+-- Teleport Void (Abysall Debug Void ≈ Y -120)
+BypassBox:AddButton({
+	Text = "Teleport Void",
+	Func = function()
+		local char = LocalPlayer.Character
+		if not char then return end
+		local pivot = char:GetPivot()
+		-- Abysall: Pivot + Vector3 Y âm
+		char:PivotTo(pivot + Vector3.new(0, -120, 0))
+	end,
+})
+
+-- helpers Next Door (Abysall getNextClosedDoor)
+local function getNextClosedDoor()
+	local char = LocalPlayer.Character
+	if not char then return nil end
+	local GameData = ReplicatedStorage:FindFirstChild("GameData")
+	if not GameData then return nil end
+	local LR = GameData:FindFirstChild("LatestRoom")
+	if not LR then return nil end
+	local startRoom = LR.Value
+	local bestDoor, bestNumber = nil, math.huge
+	local rooms = workspace:FindFirstChild("CurrentRooms")
+	if not rooms then return nil end
+	for _, room in ipairs(rooms:GetChildren()) do
+		local roomNum = tonumber(room.Name)
+		if roomNum and roomNum \~= 100 and roomNum >= startRoom and roomNum < bestNumber then
+			local door = room:FindFirstChild("Door")
+			if door and door:IsA("Model") then
+				local openAttr = door:GetAttribute("Open")
+				if openAttr == false or openAttr == nil then
+					bestNumber = roomNum
+					bestDoor = door
+				end
+			end
+		end
+	end
+	return bestDoor, bestNumber
+end
+
+BypassBox:AddButton({
+	Text = "Teleport To Next Door",
+	Func = function()
+		local door = getNextClosedDoor()
+		local char = LocalPlayer.Character
+		if door and char then
+			char:PivotTo(door:GetPivot() * CFrame.new(0, -1, 0))
+		end
+	end,
+})
+
+local TpNextDoorConnection = nil
+BypassBox:AddToggle("TpNextDoor", {
+	Text = "Auto TP Next Door",
+	Default = false,
+	Tooltip = "Liên tục TP tới cửa chưa mở kế tiếp (Abysall)",
+	Callback = function(Value)
+		if TpNextDoorConnection then
+			task.cancel(TpNextDoorConnection)
+			TpNextDoorConnection = nil
+		end
+		if not Value then return end
+		TpNextDoorConnection = task.spawn(function()
+			while Toggles.TpNextDoor and Toggles.TpNextDoor.Value do
+				local door = getNextClosedDoor()
+				local char = LocalPlayer.Character
+				if door and char then
+					char:PivotTo(door:GetPivot() * CFrame.new(0, -1, 0))
+				end
+				task.wait(0.15)
+			end
+			TpNextDoorConnection = nil
+		end)
+	end,
+})
 FoolsFloor:AddToggle('InfRevive',{
 Text = "Infinite Revive",
 Default = false
@@ -1315,6 +1390,41 @@ PlayerBox:AddToggle('Godmode',{
 	NoUI = false,
 	Callback = function() end,
 	ChangedCallback = function() end,
+})
+-- State Auto Position Spoof (Abysall-style)
+getgenv().LeafAutoSpoofed = false
+getgenv().LeafLastMonsterAround = false
+
+local SpoofMonstersList = {
+	RushMoving = true, AmbushMoving = true, BackdoorRush = true,
+	A60 = true, A120 = true, GlitchRush = true, GlitchAmbush = true,
+	BashMoving = true, DronesStampede = true, Scribbles = true,
+	CustomEntity = true, FrozenAmbush = true,
+}
+
+local function IsSpoofMonsterAround()
+	for _, child in ipairs(workspace:GetChildren()) do
+		if SpoofMonstersList[child.Name] then return true end
+	end
+	local live = workspace:FindFirstChild("LiveEntities")
+	if live then
+		for _, child in ipairs(live:GetChildren()) do
+			if SpoofMonstersList[child.Name] then return true end
+		end
+	end
+	return false
+end
+
+PlayerBox:AddToggle("AutoPositionSpoof", {
+	Text = "Auto Position Spoof",
+	Default = false,
+	Tooltip = "Tự bật Position Spoof theo chế độ Luôn Luôn|có thực thể nguy hiểm",
+})
+
+PlayerBox:AddDropdown("AutoPositionSpoofMode", {
+	Text = "Auto Spoof Mode",
+	Values = { "Always On", "Entity Spam" },
+	Default = "Entity Spam",
 })
 local PromptIgnore = {
 	HidePrompt = true,
