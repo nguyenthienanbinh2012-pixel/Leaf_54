@@ -1495,7 +1495,7 @@ Callback = function(Value)
 		end
 	end
 end
-}):AddKeyPicker("AutoInteractKeybind", {
+}}):AddKeyPicker("AutoInteractKeybind", {
 Default = "R",
 SyncToggleState = true,
 Mode = Library.IsMobile and "Toggle" or "Hold",
