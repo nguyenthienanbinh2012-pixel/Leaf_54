@@ -1237,7 +1237,60 @@ BypassBox:AddButton({
 		end
 	end,
 })
+BypassBox:AddButton({
+	Text = "Teleport Paradise",
+	Func = function()
+		local char = LocalPlayer.Character
+		if not char then return end
+		char:PivotTo(CFrame.new(930, 50, 0)) -- +930 X, Y 50 (đổi Z nếu cần)
+	end,
+})
 
+BypassBox:AddDropdown("TeleportPlayerTarget", {
+	Text = "Teleport Player Target",
+	Values = { "Nearest" },
+	Default = "Nearest",
+})
+task.spawn(function()
+	while task.wait(2) do
+		if not Options.TeleportPlayerTarget then break end
+		local names = { "Nearest" }
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr \~= LocalPlayer then table.insert(names, plr.Name) end
+		end
+		pcall(function() Options.TeleportPlayerTarget:SetValues(names) end)
+	end
+end)
+
+BypassBox:AddButton({
+	Text = "Teleport Player",
+	Func = function()
+		local char = LocalPlayer.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		if not root then return end
+		local pick = Options.TeleportPlayerTarget and Options.TeleportPlayerTarget.Value or "Nearest"
+		local targetPlr = nil
+		if pick ~= "Nearest" then
+			targetPlr = Players:FindFirstChild(pick)
+		end
+		if not targetPlr then
+			local best, bestD = nil, math.huge
+			for _, plr in ipairs(Players:GetPlayers()) do
+				if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+					local d = (plr.Character.HumanoidRootPart.Position - root.Position).Magnitude
+					if d < bestD then bestD, best = d, plr end
+				end
+			end
+			targetPlr = best
+		end
+		if targetPlr and targetPlr.Character then
+			local tRoot = targetPlr.Character:FindFirstChild("HumanoidRootPart")
+			if tRoot then
+				char:PivotTo(tRoot.CFrame * CFrame.new(0, 0, 3))
+			end
+		end
+	end,
+})
 local TpNextDoorConnection = nil
 BypassBox:AddToggle("TpNextDoor", {
 	Text = "Auto TP Next Door",
@@ -3917,6 +3970,32 @@ task.defer(function()
 		end
 	end)
 end)
+HotelFloor:AddToggle("AutoHotelIgnoreEntity", {
+	Text = "Ignore Entity",
+	Default = false,
+	Tooltip = "Không trốn; ưu tiên Immortal; entity ≤80 studs → đứng im",
+})
+
+HotelFloor:AddToggle("LootItemOnTheWay", {
+	Text = "Loot Item On The Way",
+	Default = false,
+	Tooltip = "Ưu tiên Key → Item → Gold trên đường hotel",
+})
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.LootItemOnTheWay
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then lbl.TextSize = (lbl.TextSize or 14) - 1 end
+	end)
+end)
+
+HotelFloor:AddDropdown("LootPickMode", {
+	Text = "Loot Pick",
+	Values = { "All", "Item", "Gold" },
+	Default = "All",
+})
 BypassEntityBox:AddToggle('FigureHearing',{
 Text = "Anti Figure Hearing",
 Default = false,
@@ -4729,32 +4808,33 @@ end
 if (Toggles.AutoInteract and Toggles.AutoInteract.Value)
 	or (Options.AutoInteractKeybind and Options.AutoInteractKeybind:GetState()) then
 	AutoInteract = AutoInteract + (dt or 0.016)
-	local interactDelay = Options.AutoInteractDelay and Options.AutoInteractDelay.Value or 0.06
-	if AutoInteract > interactDelay then
+	local interactDelay = (Options.AutoInteractDelay and Options.AutoInteractDelay.Value) or 0.06
+	if AutoInteract >= interactDelay then
 		AutoInteract = 0
 		local char = LocalPlayer.Character
 		local root = char and char:FindFirstChild("HumanoidRootPart")
 		local fireppFunc = Firepp or fireproximityprompt
 		if root and fireppFunc then
 			local hrpPos = root.Position
-			local reachDist = Options.AutoInteractreach and Options.AutoInteractreach.Value or 12
+			local reachDist = (Options.AutoInteractreach and Options.AutoInteractreach.Value) or 12
 			local rooms = workspace:FindFirstChild("CurrentRooms")
 			if rooms then
 				for _, prompt in ipairs(rooms:GetDescendants()) do
 					if prompt:IsA("ProximityPrompt") and prompt.Enabled then
 						if PromptIgnore[prompt.Name] then continue end
 						local parent = prompt.Parent
-						if parent.Name == "SeatPart" or parent.Name == "Seat" or parent.Name == "Chair"
-	or parent:IsA("Seat") or parent:IsA("VehicleSeat") then
-										else
 						if not parent then continue end
+						-- ghế
+						if parent.Name == "SeatPart" or parent.Name == "Seat" or parent.Name == "Chair"
+							or parent:IsA("Seat") or parent:IsA("VehicleSeat") then
+							continue
+						end
 						if parent.Name == "Padlock" or parent:GetAttribute("JeffShop") then continue end
-						if parent.Name == "KeyObtainFake" then continue end
-						if parent.Name == "Mandrake" then continue end
+						if parent.Name == "KeyObtainFake" or parent.Name == "Mandrake" then continue end
 						if parent.Name == "GoldPile" and Floor and Floor.Value == "Fools" then continue end
 						if prompt:GetAttribute("InfItems") and prompt.Name ~= "InfPrompt" then continue end
 						local last = AutoInteractCooldowns[prompt]
-						if last and (tick() - last) < 0.2 then continue end
+						if last and (tick() - last) < 0.15 then continue end
 						local targetPart = parent:IsA("BasePart") and parent
 							or (parent:IsA("Model") and (parent.PrimaryPart or parent:FindFirstChildWhichIsA("BasePart")))
 						if targetPart and (hrpPos - targetPart.Position).Magnitude <= reachDist then
@@ -4771,7 +4851,6 @@ if Toggles.FarmGlitchCube and Toggles.FarmGlitchCube.Value and GlitchFarmActive 
 	local char = LocalPlayer.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
-	-- Entity spam → thông báo + tắt
 	local spam = false
 	for _, n in ipairs({"RushMoving","AmbushMoving","A60","A120","GlitchRush","GlitchAmbush","BackdoorRush"}) do
 		if workspace:FindFirstChild(n) then spam = true break end
@@ -4779,26 +4858,29 @@ if Toggles.FarmGlitchCube and Toggles.FarmGlitchCube.Value and GlitchFarmActive 
 	if spam then
 		if Notify then Notify("Farm Glitch: ENTITY SPAM — TẮT", 4) end
 		Toggles.FarmGlitchCube:SetValue(false)
-	elseif root then
-		for _, p in ipairs(char:GetDescendants()) do
-			if p:IsA("BasePart") then
+	elseif root and char then
+		-- chỉ tắt collide hitbox chính (không đụng mọi part → ít kẹt)
+		for _, name in ipairs({"Collision", "CollisionPart", "CollisionClone", "UpperTorso", "LowerTorso", "HumanoidRootPart"}) do
+			local p = char:FindFirstChild(name)
+			if p and p:IsA("BasePart") then
 				p.CanCollide = false
 			end
 		end
 		if hum then
-			hum.PlatformStand = true
+			hum.PlatformStand = false
+			hum:ChangeState(Enum.HumanoidStateType.Running)
 		end
 		local bv = root:FindFirstChild("LeafGlitchBV")
 		if not bv then
 			bv = Instance.new("BodyVelocity")
 			bv.Name = "LeafGlitchBV"
-			bv.MaxForce = Vector3.new(1e5, 0, 1e5)
-			bv.P = 1250
+			bv.MaxForce = Vector3.new(1e5, 1e4, 1e5)
+			bv.P = 3000
 			bv.Parent = root
 		end
-		-- kéo sang phải liên tục (theo LookVector phải)
 		local right = root.CFrame.RightVector
-		bv.Velocity = right * 80
+		bv.Velocity = Vector3.new(right.X * 95, 6, right.Z * 95) -- hơi nhấc + kéo phải
+		root.AssemblyLinearVelocity = Vector3.new(right.X * 40, root.AssemblyLinearVelocity.Y, right.Z * 40)
 	end
 end
 
@@ -4832,6 +4914,7 @@ do
 	end
 end
 -- Giữ Upside Down mỗi frame (game có thể reset Rotation)
+-- Upside Down (ép mỗi frame)
 if Toggles.UpsideDown and Toggles.UpsideDown.Value then
 	local char = LocalPlayer.Character
 	local coll = char and char:FindFirstChild("Collision")
@@ -4843,50 +4926,36 @@ if Toggles.UpsideDown and Toggles.UpsideDown.Value then
 	if root then
 		local pos = root.Position
 		local look = root.CFrame.LookVector * Vector3.new(1, 0, 1)
-		if look.Magnitude < 0.05 then
-			look = Vector3.new(0, 0, -1)
-		else
-			look = look.Unit
-		end
+		if look.Magnitude < 0.05 then look = Vector3.new(0, 0, -1) else look = look.Unit end
 		root.CFrame = CFrame.lookAt(pos, pos + look) * CFrame.Angles(math.rad(180), 0, 0)
 	end
 end
-if Toggles.NoFog.Value then
-if Lighting.FogEnd < 100000 then
-Lighting.FogEnd = 100000
+
+-- Anti Eyes (ĐỘC LẬP — không nằm trong UpsideDown)
+if Toggles.EyesDamage and Toggles.EyesDamage.Value then
+	local eyes = workspace:FindFirstChild("Eyes") or workspace:FindFirstChild("Lookman")
+	if eyes and LocalPlayer.Character and not LocalPlayer.Character:GetAttribute("Hiding") then
+		pcall(function()
+			if MotorReplication then
+				if RemotesFolder and RemotesFolder.Name ~= "RemotesFolder" then
+					MotorReplication:FireServer(0, -650, 0, false)
+				else
+					MotorReplication:FireServer(-650)
+				end
+			end
+		end)
+	end
 end
-for _, v in pairs(Lighting:GetChildren()) do
-if v:IsA("Atmosphere") and v.Density > 0 then
-v.Density = 0
+
+if Toggles.LookmanDamage and Toggles.LookmanDamage.Value then
+	if workspace:FindFirstChild("BackdoorLookman") then
+		if LocalPlayer.Character and not LocalPlayer.Character:GetAttribute("Hiding") then
+			pcall(function()
+				if MotorReplication then MotorReplication:FireServer(-650) end
+			end)
+		end
+	end
 end
-end
-end
-if Toggles.NoCamShake.Value then
-if RequiredMainGame then
-RequiredMainGame.csgo = CFrame.new(0,0,0)
-end
-end
-if Toggles.Player.Value and PlayerESP > 1 then
-PlayerESP = 0
-for _, v in pairs(Players:GetPlayers()) do
-if v ~= LocalPlayer and v.Character then
-local hum = v.Character:FindFirstChildOfClass("Humanoid")
-if hum then
-if hum.Health > 0 then
-AddESP(v.Character, v.Name .. " [" .. math.floor((hum.Health / hum.MaxHealth) * 100) .. "%]", PlayerColor)
-else
-ESPLibrary:RemoveESP(v.Character)
-end
-end
-end
-end
-end
-if Toggles.EyesDamage.Value then
-if (workspace:FindFirstChild("Eyes") or workspace:FindFirstChild("Lookman")) and not LocalPlayer.Character:GetAttribute("Hiding") then
-if RemotesFolder.Name ~= "RemotesFolder" then
-MotorReplication:FireServer(0, -650, 0, false)
-else
-MotorReplication:FireServer(-650)
 end
 end
 end
