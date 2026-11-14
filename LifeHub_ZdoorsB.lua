@@ -234,6 +234,218 @@ Tp:AddButton("Teleport to Daily Run", function() FastElevator("Daily") end)
 Tp:AddButton("Teleport to Cringles Workshop", function() FastElevator("CringlesWorkshop") end)
 Tp:AddButton("Teleport to Trick Or Treat", function() FastElevator("Halloween25") end)
 Tp:AddButton("Teleport to Hotel-", function() FastElevator("BeforePlus") end)
+local GameBox = Tabs.Main:AddRightGroupbox("Game", "circle")
+
+GameBox:AddSlider("GameSpeed", {
+    Text = "Speed",
+    Min = 1,
+    Max = 90,
+    Default = 16,
+    Rounding = 0,
+    Compact = true,
+    Callback = function(Value)
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = Value end
+    end,
+})
+
+GameBox:AddSlider("GameFlySpeed", {
+    Text = "Fly",
+    Min = 1,
+    Max = 90,
+    Default = 16,
+    Rounding = 0,
+    Compact = true,
+})
+
+GameBox:AddToggle("GameNoClip", {
+    Text = "No Clip",
+    Default = false,
+    Tooltip = "Xuyên tường",
+})
+
+GameBox:AddToggle("GameRestore", {
+    Text = "Khôi phục",
+    Default = false,
+    Tooltip = "Reset Speed / Fly / NoClip về mặc định",
+})
+
+GameBox:AddDivider()
+
+GameBox:AddButton("Auto Enter Code", function()
+    if getgenv().LeafRedeemingCodes then return end
+    getgenv().LeafRedeemingCodes = true
+    local codes = {
+        "67","54","41","CHEDDAR BALLS","XQC","PENGUINZ0","KREEKCRAFT",
+        "ISHOWSPEED","DANTDM","KUBZ SCOUTS","FIND THE TROLLFACES",
+        "THINKNOODLES","W","RAGDOLL UNIVERSE","RAGDOLL MAYHEM",
+        "BIJUU MIKE","8BITRYAN","SCREECHSUCKS","LORE",
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ","3rd","LAZYDEVS",
+        "RAGDOLL COMBAT","VOCAB HAVOC","PATHSWAP","JUMP OVER THE BRICK"
+    }
+    local ShopCode = ReplicatedStorage:FindFirstChild("RemotesFolder")
+        and ReplicatedStorage.RemotesFolder:FindFirstChild("ShopCode")
+    if not ShopCode then
+        Notify("Auto Enter Code: Không tìm thấy ShopCode remote", 4)
+        getgenv().LeafRedeemingCodes = false
+        return
+    end
+    Notify("Redeeming " .. #codes .. " codes...", 4)
+    for _, code in ipairs(codes) do
+        ShopCode:FireServer(code)
+        task.wait(5.1)
+    end
+    getgenv().LeafRedeemingCodes = false
+end)
+
+GameBox:AddDivider()
+
+local TitleLoopLabel = GameBox:AddLabel("Title Loop")
+if TitleLoopLabel then
+    pcall(function()
+        local lbl = TitleLoopLabel.TextLabel or TitleLoopLabel.Object
+        if lbl and lbl:IsA("TextLabel") then
+            lbl.TextColor3 = Color3.fromRGB(0, 255, 0)
+            lbl.RichText = true
+            lbl.Text = '<font color="rgb(0,255,0)">Title Loop</font>'
+        end
+    end)
+end
+
+GameBox:AddToggle("GameTitleLoop", {
+    Text = "Title Loop",
+    Default = false,
+    Tooltip = "Giúp Chuyển các danh hiệu",
+})
+
+GameBox:AddSlider("GameTitleLoopSpeed", {
+    Text = "Tốc độ lặp",
+    Min = 0.1,
+    Max = 1,
+    Default = 0.1,
+    Rounding = 2,
+    Compact = true,
+})
+
+-- ===== LOGIC =====
+local GameConns = {}
+local GameFlyBV = nil
+local LastTitleChange = tick()
+local PrevTitleBadge = nil
+local OrigSpeed = 16
+
+local FlexRemote = ReplicatedStorage:FindFirstChild("RemotesFolder")
+    and ReplicatedStorage.RemotesFolder:FindFirstChild("FlexAchievement")
+
+GameConns.Fly = RunService.RenderStepped:Connect(function()
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum then return end
+
+    if Toggles.GameNoClip and Toggles.GameNoClip.Value then
+        for _, p in ipairs(char:GetDescendants()) do
+            if p:IsA("BasePart") and p.CanCollide then p.CanCollide = false end
+        end
+    end
+
+    local flySpeed = Options.GameFlySpeed and Options.GameFlySpeed.Value or 16
+    if flySpeed > 16 and not (Toggles.GameRestore and Toggles.GameRestore.Value) then
+        if not GameFlyBV or GameFlyBV.Parent ~= hrp then
+            if GameFlyBV then GameFlyBV:Destroy() end
+            GameFlyBV = Instance.new("BodyVelocity")
+            GameFlyBV.Name = "GameFlyBV"
+            GameFlyBV.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+            GameFlyBV.Velocity = Vector3.zero
+            GameFlyBV.Parent = hrp
+        end
+        local cam = workspace.CurrentCamera
+        local move = Vector3.zero
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then move += cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then move -= cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then move -= cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then move += cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move += Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move -= Vector3.new(0, 1, 0) end
+        GameFlyBV.Velocity = move.Magnitude > 0 and move.Unit * flySpeed or Vector3.zero
+        hum.PlatformStand = true
+    else
+        if GameFlyBV then GameFlyBV:Destroy() GameFlyBV = nil end
+        if hum.PlatformStand then hum.PlatformStand = false end
+    end
+end)
+
+if Toggles.GameRestore then
+    Toggles.GameRestore:OnChanged(function(v)
+        if not v then return end
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.WalkSpeed = OrigSpeed
+            hum.PlatformStand = false
+        end
+        if GameFlyBV then GameFlyBV:Destroy() GameFlyBV = nil end
+        if char then
+            for _, p in ipairs(char:GetDescendants()) do
+                if p:IsA("BasePart") then p.CanCollide = true end
+            end
+        end
+        if Options.GameSpeed then Options.GameSpeed:SetValue(OrigSpeed) end
+        if Options.GameFlySpeed then Options.GameFlySpeed:SetValue(16) end
+        if Toggles.GameNoClip then Toggles.GameNoClip:SetValue(false) end
+        Toggles.GameRestore:SetValue(false)
+    end)
+end
+
+GameConns.Title = RunService.Heartbeat:Connect(function()
+    if not (Toggles.GameTitleLoop and Toggles.GameTitleLoop.Value) then return end
+    local delay = Options.GameTitleLoopSpeed and Options.GameTitleLoopSpeed.Value or 0.1
+    if tick() - LastTitleChange < delay then return end
+
+    local plrGui = LocalPlayer.PlayerGui
+    local mainUI = plrGui:FindFirstChild("MainUI")
+    local lobbyFrame = mainUI and mainUI:FindFirstChild("LobbyFrame")
+    local ach = lobbyFrame and lobbyFrame:FindFirstChild("Achievements")
+    local list = ach and ach:FindFirstChild("List")
+    if not list then return end
+
+    local badges = {}
+    for _, f in ipairs(list:GetChildren()) do
+        if f:IsA("ImageButton") and f.ImageTransparency == 0 then
+            table.insert(badges, f.Name)
+        end
+    end
+    if #badges == 0 then return end
+
+    local badge = badges[math.random(1, #badges)]
+    if badge == PrevTitleBadge and #badges > 1 then
+        while true do
+            local nb = badges[math.random(1, #badges)]
+            if nb ~= PrevTitleBadge then badge = nb break end
+            task.wait()
+        end
+    end
+
+    for _, f in ipairs(list:GetChildren()) do
+        if f:IsA("ImageButton") and f.ImageTransparency == 0 and f:FindFirstChild("Icons") then
+            local star = f.Icons:FindFirstChild("Star")
+            if star then star.Visible = false end
+        end
+    end
+
+    if FlexRemote then FlexRemote:FireServer(badge) end
+    PrevTitleBadge = badge
+
+    local bf = list:FindFirstChild(badge)
+    if bf and bf:FindFirstChild("Icons") and bf.Icons:FindFirstChild("Star") then
+        bf.Icons.Star.Visible = true
+    end
+    LastTitleChange = tick()
+end)
+
+table.insert(Connections, GameConns.Fly)
+table.insert(Connections, GameConns.Title)
 local MenuGroup = Tabs.Settings:AddLeftGroupbox('UI Settings')
 local UtilityBox = Tabs.Settings:AddRightGroupbox('Hub Utilities')
 MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
