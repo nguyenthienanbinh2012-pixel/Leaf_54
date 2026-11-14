@@ -101,6 +101,11 @@ end
 local Options = Library.Options
 local Toggles = Library.Toggles
 local Connections = {}
+local AlmaConnection = nil
+local DroneConnection = nil
+local DroneWalkedIntoParents = {}
+local AntiNoiseConnection = nil
+local AntiMonumentConnection = nil
 local Window = Library:CreateWindow({
 Title = LibraryName,
 Center = true,
@@ -749,6 +754,96 @@ BringBox:AddSlider("OrbitDroppedItemsSpeed", {
 	Max = 5,
 	Rounding = 1,
 	Compact = false,
+})
+local DestroyBox = Tabs.Other:AddRightGroupbox("Destroy", "bomb")
+
+-- Hạ TV xuống void (Abysall Under Map Y=-120) — CHỮ ĐỎ
+local function LeafLowerTV(tv)
+	if not tv or not tv.Parent then return end
+	pcall(function()
+		for _, p in ipairs(tv:GetDescendants()) do
+			if p:IsA("BasePart") then
+				p.Anchored = true
+				p.CanCollide = false
+			end
+		end
+		local pivot = tv:GetPivot()
+		tv:PivotTo(CFrame.new(pivot.Position.X, -120, pivot.Position.Z))
+	end)
+end
+
+-- Lật TV (Abysall Rotate & Lift Orientation 0,180,180)
+local function LeafOverthrowTV(tv)
+	if not tv or not tv.Parent then return end
+	pcall(function()
+		for _, p in ipairs(tv:GetDescendants()) do
+			if p:IsA("BasePart") then
+				p.Anchored = true
+				p.Orientation = Vector3.new(0, 180, 180)
+			end
+		end
+		local pivot = tv:GetPivot()
+		tv:PivotTo(pivot * CFrame.Angles(0, math.rad(180), math.rad(180)) * CFrame.new(0, 2, 0))
+	end)
+end
+
+local function LeafFindNoiseTVs()
+	local list = {}
+	local function add(m)
+		if m and m:IsA("Model") then
+			local n = m.Name
+			if n == "TV_Stand" or n == "Noise_TV" or n == "NoiseTV" then
+				table.insert(list, m)
+			end
+		end
+	end
+	local misc = workspace:FindFirstChild("Misc")
+	if misc then for _, c in ipairs(misc:GetChildren()) do add(c) end end
+	for _, c in ipairs(workspace:GetChildren()) do add(c) end
+	local char = LocalPlayer.Character
+	if char then
+		for _, t in ipairs(char:GetChildren()) do
+			if t:IsA("Tool") then add(t) end
+		end
+	end
+	return list
+end
+
+DestroyBox:AddToggle("LowerPositionTV", {
+	Text = "Lower Position TV",
+	Default = false,
+	Risky = true,
+	Tooltip = "Hạ TV Noise xuống Y=-120 Under Map",
+	Callback = function(Value)
+		if not Value then return end
+		for _, tv in ipairs(LeafFindNoiseTVs()) do
+			LeafLowerTV(tv)
+		end
+	end,
+})
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.LowerPositionTV
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(255,40,40)">Lower Position TV</font>'
+		end
+	end)
+end)
+
+DestroyBox:AddToggle("BypassOverthrowTV", {
+	Text = "Bypass Overthrow TV",
+	Default = false,
+	Tooltip = "Lật TV Noise Orientation",
+	Callback = function(Value)
+		if not Value then return end
+		for _, tv in ipairs(LeafFindNoiseTVs()) do
+			LeafOverthrowTV(tv)
+		end
+	end,
 })
 local function LeafUpdateFloorGroups()
 	local f = Floor and Floor.Value or ""
@@ -3108,6 +3203,139 @@ v.Humanoid.Health = 0
 end
 end
 end))
+-- Anti Alma (Abysall: destroy Alma khi spawn)
+BypassEntityBox:AddToggle("AntiAlma", {
+	Text = "Anti Alma",
+	Default = false,
+	Tooltip = "Xóa Alma khi spawn",
+	Callback = function(Value)
+		if AlmaConnection then AlmaConnection:Disconnect() AlmaConnection = nil end
+		if not Value then return end
+		for _, c in ipairs(workspace:GetChildren()) do
+			if c.Name == "Alma" then pcall(function() c:Destroy() end) end
+		end
+		AlmaConnection = workspace.ChildAdded:Connect(function(child)
+			if child.Name == "Alma" and Toggles.AntiAlma.Value then
+				pcall(function() child:Destroy() end)
+			end
+		end)
+	end,
+})
+
+-- Anti Drone (Abysall: nhấc WalkedInto khỏi Drones)
+BypassEntityBox:AddToggle("AntiDrone", {
+	Text = "Anti Drone",
+	Default = false,
+	Tooltip = "Chặn Drones tấn WalkedInto",
+	Callback = function(Value)
+		local RS = ReplicatedStorage
+		local function ProcessDrones(drones)
+			local WalkedInto = drones:FindFirstChild("WalkedInto") or drones:WaitForChild("WalkedInto", 2)
+			if WalkedInto and not DroneWalkedIntoParents[WalkedInto] then
+				DroneWalkedIntoParents[WalkedInto] = drones
+				WalkedInto.Parent = RS
+			end
+		end
+		if Value then
+			for _, child in ipairs(workspace:GetChildren()) do
+				if child.Name == "Drones" then ProcessDrones(child) end
+			end
+			if DroneConnection then DroneConnection:Disconnect() end
+			DroneConnection = workspace.ChildAdded:Connect(function(child)
+				if child.Name == "Drones" then ProcessDrones(child) end
+			end)
+		else
+			for WalkedInto, originalParent in pairs(DroneWalkedIntoParents) do
+				if WalkedInto and WalkedInto.Parent and originalParent and originalParent.Parent then
+					WalkedInto.Parent = originalParent
+				end
+			end
+			table.clear(DroneWalkedIntoParents)
+			if DroneConnection then DroneConnection:Disconnect() DroneConnection = nil end
+		end
+	end,
+})
+
+-- Anti Noise (notify + đánh dấu; phá TV nằm ở group Destroy)
+BypassEntityBox:AddToggle("AntiNoise", {
+	Text = "Anti Noise",
+	Default = false,
+	Tooltip = "Bật kèm Destroy TV (Lower / Overthrow) khi cầm TV Noise",
+})
+
+-- Anti Monument (Outdoor: tắt CanTouch hitbox)
+BypassEntityBox:AddToggle("AntiMonument", {
+	Text = "Anti Monument",
+	Default = false,
+	Tooltip = "Tắt CanTouch MonumentEntity",
+	Callback = function(Value)
+		if AntiMonumentConnection then AntiMonumentConnection:Disconnect() AntiMonumentConnection = nil end
+		local function Apply(obj)
+			if obj.Name \~= "MonumentEntity" and obj.Name \~= "Monument" then return end
+			for _, p in ipairs(obj:GetDescendants()) do
+				if p:IsA("BasePart") then p.CanTouch = not Value end
+			end
+		end
+		for _, c in ipairs(workspace:GetChildren()) do Apply(c) end
+		if Value then
+			AntiMonumentConnection = workspace.ChildAdded:Connect(Apply)
+		end
+	end,
+})
+
+-- Anti Currents / Electric Water (Abysall Water-style đơn giản)
+BypassEntityBox:AddToggle("AntiCurrents", {
+	Text = "Anti Currents",
+	Default = false,
+	Tooltip = "Tắt CanTouch nước điện / current",
+	Callback = function(Value)
+		local rooms = workspace:FindFirstChild("CurrentRooms")
+		if not rooms then return end
+		for _, room in ipairs(rooms:GetChildren()) do
+			local water = room:FindFirstChild("Water")
+			if water then
+				for _, p in ipairs(water:GetDescendants()) do
+					if p:IsA("BasePart") then
+						p.CanTouch = not Value
+					end
+				end
+				if water:IsA("BasePart") then water.CanTouch = not Value end
+			end
+			for _, p in ipairs(room:GetDescendants()) do
+				if p.Name == "ElectricWater" or p.Name == "Current" or p.Name == "Currents" then
+					if p:IsA("BasePart") then p.CanTouch = not Value end
+				end
+			end
+		end
+	end,
+})
+
+-- Anti Vacuum (FakeDoor / SideroomSpace)
+BypassEntityBox:AddToggle("AntiVacuum", {
+	Text = "Anti Vacuum",
+	Default = false,
+	Tooltip = "Chặn Tương tác Vacuum touch",
+	Callback = function(Value)
+		local rooms = workspace:FindFirstChild("CurrentRooms")
+		if not rooms then return end
+		for _, obj in ipairs(rooms:GetDescendants()) do
+			if obj.Name == "FakeDoor" or obj.Name == "DoorFake" then
+				local hidden = obj:FindFirstChild("Hidden")
+				if hidden then hidden.CanTouch = not Value end
+				local lock = obj:FindFirstChild("Lock")
+				if lock and lock:FindFirstChild("UnlockPrompt") then
+					lock.UnlockPrompt.Enabled = not Value
+				end
+			elseif obj.Name == "SideroomSpace" then
+				local coll = obj:FindFirstChild("Collision")
+				if coll then
+					coll.CanTouch = not Value
+					coll.CanCollide = false
+				end
+			end
+		end
+	end,
+})
 BypassEntityBox:AddToggle("SemiGod", {
 	Text = "Semi God",
 	Default = false,
@@ -3118,8 +3346,11 @@ BypassEntityBox:AddToggle("SemiGod", {
 		"BypassSurgeDamage", "Snare", "Giggle", "Dupe",
 		"EyesDamage", "LookmanDamage", "GloomEggDamage",
 		"FigureHearing", "AntiLag",
-		"AntiBanana", "AntiJeff", "AntiLava", "AntiWall",
-		"AntiSeekFlood", "SeekObf",
+		"AntiBanana", "AntiJeff", "AntiLava", "AntiWall", "AntiSeekFlood",
+		-- mới
+		"AntiAlma", "AntiDrone", "AntiNoise", "AntiMonument",
+		"AntiCurrents", "AntiVacuum",
+		"LowerPositionTV", "BypassOverthrowTV",
 	}
 	for _, name in ipairs(list) do
 		if Toggles[name] then
@@ -4046,6 +4277,32 @@ if Toggles.AutoPositionSpoof and Toggles.AutoPositionSpoof.Value then
 				Toggles.Godmode:SetValue(false)
 			end
 			getgenv().LeafAutoSpoofed = false
+		end
+	end
+end
+if Toggles.Immortal and Toggles.Immortal.Value then
+	if LeafApplyImmortal then
+		LeafApplyImmortal(LocalPlayer.Character, true)
+	end
+end
+if (Toggles.AntiNoise and Toggles.AntiNoise.Value)
+	or (Toggles.LowerPositionTV and Toggles.LowerPositionTV.Value)
+	or (Toggles.BypassOverthrowTV and Toggles.BypassOverthrowTV.Value) then
+	local char = LocalPlayer.Character
+	if char then
+		for _, child in ipairs(char:GetChildren()) do
+			if child:IsA("Tool") or child:IsA("Model") then
+				local n = child.Name
+				if n == "TV_Stand" or n == "Noise_TV" or n == "NoiseTV" or n == "TV" then
+					if Toggles.LowerPositionTV and Toggles.LowerPositionTV.Value then
+						LeafLowerTV(child)
+					elseif Toggles.BypassOverthrowTV and Toggles.BypassOverthrowTV.Value then
+						LeafOverthrowTV(child)
+					elseif Toggles.AntiNoise and Toggles.AntiNoise.Value then
+						LeafLowerTV(child) -- mặc định hạ void khi Anti Noise
+					end
+				end
+			end
 		end
 	end
 end
