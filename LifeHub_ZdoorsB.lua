@@ -1577,7 +1577,7 @@ PlayerBox:AddToggle("Immortal", {
 		else
 			LeafApplyImmortal(LocalPlayer.Character, false)
 			local char = LocalPlayer.Character
-			if char and char:GetAttribute("Hiding") \~= true then
+			if char and char:GetAttribute("Hiding") ~= true then
 				pcall(function()
 					char:PivotTo(char:GetPivot() * CFrame.new(0, 4, 0))
 				end)
@@ -3271,7 +3271,7 @@ BypassEntityBox:AddToggle("AntiMonument", {
 	Callback = function(Value)
 		if AntiMonumentConnection then AntiMonumentConnection:Disconnect() AntiMonumentConnection = nil end
 		local function Apply(obj)
-			if obj.Name \~= "MonumentEntity" and obj.Name \~= "Monument" then return end
+			if obj.Name ~= "MonumentEntity" and obj.Name ~= "Monument" then return end
 			for _, p in ipairs(obj:GetDescendants()) do
 				if p:IsA("BasePart") then p.CanTouch = not Value end
 			end
@@ -3359,7 +3359,8 @@ BypassEntityBox:AddToggle("SemiGod", {
 			end)
 		end
 	end
-end
+end,
+})
 task.defer(function()
 	task.wait(0.4)
 	pcall(function()
