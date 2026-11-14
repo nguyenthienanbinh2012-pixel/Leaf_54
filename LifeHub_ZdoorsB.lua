@@ -114,9 +114,9 @@ AutoShow = true,
 NotifySide = "Right",
 ShowCustomCursor = true,
 Footer = "obsidian-ui",
-CornerRadius = 10,
+CornerRadius = 12,
 })
-Window.MainFrame.Size = UDim2.fromOffset(720, 320)
+Window.MainFrame.Size = UDim2.fromOffset(710, 310)
 Window:SetSidebarWidth(160)
 if Library.KeybindFrame then
 if getgenv().LeafHub_KeybindPos then
@@ -202,7 +202,7 @@ return table.concat(Slot)
 end
 if workspace:FindFirstChild("Lobby") then
 local Tabs = {
-Main = Window:AddTab('Game',"Earth"),
+Main = Window:AddTab('Game',"earth"),
 Settings = Window:AddTab('Settings',"settings"),
 }
 local Tp = Tabs.Main:AddLeftGroupbox("Teleport")
@@ -502,8 +502,8 @@ end
 end))
 local Tabs = {
 Main = Window:AddTab('Player', "user"),
-Bypass = Window:AddTab('Bypass', "ban"),
-Visuals = Window:AddTab('Visuals',"eye"),
+Bypass = Window:AddTab('Bypass', "lock-keyhole"),
+Visuals = Window:AddTab('Visuals',"monitor"),
 Floor = Window:AddTab('Floor', "building"),
 Other = Window:AddTab('Other', "drama"),
 Settings = Window:AddTab('Settings',"settings"),
