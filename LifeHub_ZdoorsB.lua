@@ -1440,6 +1440,75 @@ local function IsSpoofMonsterAround()
 	end
 	return false
 end
+-- Immortal = Position Spoof kiểu DeHub (tách toggle, khóa chéo với Godmode)
+local function LeafApplyImmortal(char, enabled)
+	if not char then return end
+	local humanoid = char:FindFirstChildOfClass("Humanoid")
+	local collision = char:FindFirstChild("Collision")
+	local crouch = collision and collision:FindFirstChild("CollisionCrouch")
+	local lowerTorso = char:FindFirstChild("LowerTorso")
+	local rootJoint = lowerTorso and lowerTorso:FindFirstChild("Root")
+	if humanoid then
+		humanoid.HipHeight = enabled and 0.09 or 2.0
+	end
+	if collision and collision:IsA("BasePart") then
+		collision.Size = enabled and Vector3.new(1, 1, 1) or Vector3.new(5.5, 3, 3)
+	end
+	if crouch and crouch:IsA("BasePart") then
+		crouch.Size = enabled and Vector3.new(1, 1, 1) or Vector3.new(5.5, 3, 3)
+	end
+	if rootJoint then
+		rootJoint.C1 = enabled and CFrame.new(0, -2.3, 0) or CFrame.new(0, 0, 0)
+	end
+	if RemotesFolder and RemotesFolder:FindFirstChild("Crouch") then
+		pcall(function()
+			RemotesFolder.Crouch:FireServer(enabled and true or false)
+		end)
+	end
+end
+
+PlayerBox:AddToggle("Immortal", {
+	Text = "Immortal",
+	Default = false,
+	Risky = true,
+	Tooltip = "God hitbox| Position Spoof v2.",
+	Callback = function(Value)
+		if Value then
+			-- bật Immortal → tắt Position Spoof
+			if Toggles.Godmode and Toggles.Godmode.Value then
+				Toggles.Godmode:SetValue(false)
+			end
+			LeafApplyImmortal(LocalPlayer.Character, true)
+		else
+			LeafApplyImmortal(LocalPlayer.Character, false)
+			local char = LocalPlayer.Character
+			if char and char:GetAttribute("Hiding") \~= true then
+				pcall(function()
+					char:PivotTo(char:GetPivot() * CFrame.new(0, 4, 0))
+				end)
+			end
+		end
+	end,
+}):AddKeyPicker("ImmortalKeybind", {
+	Default = "I",
+	SyncToggleState = true,
+	Mode = "Toggle",
+	Text = "Immortal",
+	NoUI = false,
+})
+
+task.defer(function()
+	task.wait(0.45)
+	pcall(function()
+		local t = Toggles.Immortal
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(0,220,255)">Immortal</font>'
+		end
+	end)
+end)
 
 PlayerBox:AddToggle("AutoPositionSpoof", {
 	Text = "Auto Position Spoof",
@@ -1495,7 +1564,7 @@ Callback = function(Value)
 		end
 	end
 end
-}}):AddKeyPicker("AutoInteractKeybind", {
+}):AddKeyPicker("AutoInteractKeybind", {
 Default = "R",
 SyncToggleState = true,
 Mode = Library.IsMobile and "Toggle" or "Hold",
@@ -1558,7 +1627,8 @@ AutoBox:AddToggle("FarmGlitchCube", {
 		return
 	end
 	if Notify then Notify("Farm Glitch: BẬT (kéo phải + no collide)", 3) end
-end
+end,
+})
 AutoBox:AddDivider()
 AutoBox:AddToggle('AutoLibraryCode',{
 Text = "Auto Library Code",
@@ -3043,20 +3113,22 @@ BypassEntityBox:AddToggle("SemiGod", {
 	Default = false,
 	Tooltip = "chỉ Tránh Ảnh hưởng Từ thực thể nhỏ không Hoàn Toàn Godmode",
 	Callback = function(Value)
-		local list = {
-			"Screech", "A90", "Dread", "Halt", "Jamming",
-			"BypassSurgeDamage", "Snare", "EyesDamage", "LookmanDamage",
-			"GloomEggDamage", "Giggle",
-		}
-		for _, name in ipairs(list) do
-			if Toggles[name] then
-				pcall(function()
-					Toggles[name]:SetValue(Value and true or false)
-				end)
-			end
+	local list = {
+		"Screech", "A90", "Dread", "Halt", "Jamming",
+		"BypassSurgeDamage", "Snare", "Giggle", "Dupe",
+		"EyesDamage", "LookmanDamage", "GloomEggDamage",
+		"FigureHearing", "AntiLag",
+		"AntiBanana", "AntiJeff", "AntiLava", "AntiWall",
+		"AntiSeekFlood", "SeekObf",
+	}
+	for _, name in ipairs(list) do
+		if Toggles[name] then
+			pcall(function()
+				Toggles[name]:SetValue(Value and true or false)
+			end)
 		end
-	end,
-})
+	end
+end
 task.defer(function()
 	task.wait(0.4)
 	pcall(function()
