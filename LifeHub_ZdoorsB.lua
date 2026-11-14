@@ -1536,8 +1536,7 @@ AutoBox:AddToggle("FarmGlitchCube", {
 	Text = "Farm Glitch Cube",
 	Default = false,
 	Risky = true,
-	Tooltip = "Dịch xuống -3.9Y mỗi frame để Glitch Entity Xuất Hiện Để Farm Glitch Cube",
-	Callback = function(Value)
+	Tooltip = "Kéo Nhân Vật Mạnh để Glitch Entity Xuất Hiện Để Farm Glitch Cube",
 	Callback = function(Value)
 	GlitchFarmActive = Value and true or false
 	local char = LocalPlayer.Character
