@@ -111,8 +111,8 @@ ShowCustomCursor = true,
 Footer = "obsidian-ui",
 CornerRadius = 8,
 })
-Window.MainFrame.Size = UDim2.fromOffset(680, 480)
-Window:SetSidebarWidth(180)
+Window.MainFrame.Size = UDim2.fromOffset(550, 380)
+Window:SetSidebarWidth(190)
 if Library.KeybindFrame then
 if getgenv().LeafHub_KeybindPos then
 local p = getgenv().LeafHub_KeybindPos
@@ -197,7 +197,7 @@ return table.concat(Slot)
 end
 if workspace:FindFirstChild("Lobby") then
 local Tabs = {
-Main = Window:AddTab('Game', "Earth"),
+Main = Window:AddTab('Game',"Earth"),
 Settings = Window:AddTab('Settings',"settings"),
 }
 local Tp = Tabs.Main:AddLeftGroupbox("Teleport")
@@ -499,7 +499,7 @@ local Tabs = {
 Main = Window:AddTab('Player', "User"),
 Bypass = Window:AddTab('Bypass', "ban"),
 Visuals = Window:AddTab('Visuals',"eye"),
-Floor = Window:AddTab('Floor', "Building-2"),
+Floor = Window:AddTab('Floor', "building"),
 Other = Window:AddTab('Other', "drama"),
 Settings = Window:AddTab('Settings',"settings"),
 }
@@ -750,6 +750,32 @@ BringBox:AddSlider("OrbitDroppedItemsSpeed", {
 	Rounding = 1,
 	Compact = false,
 })
+local function LeafUpdateFloorGroups()
+	local f = Floor and Floor.Value or ""
+	local map = {
+		[HotelFloor] = (f == "Hotel" or f == "Hotel-" or f == "BeforePlus"),
+		[MinesFloor] = (f == "Mines"),
+		[FoolsFloor] = (f == "Fools" or f == "Fools26"),
+		[RoomsFloor] = (f == "Rooms"),
+		[RetroFloor] = (f == "Retro"),
+	}
+	for box, ok in pairs(map) do
+		pcall(function()
+			-- Obsidian: một số bản có SetVisible / Box.Visible
+			if box.SetVisible then
+				box:SetVisible(ok)
+			elseif box.Visible ~= nil then
+				box.Visible = ok
+			elseif box.Container then
+				box.Container.Visible = ok
+			end
+		end)
+	end
+end
+LeafUpdateFloorGroups()
+if Floor then
+	Floor:GetPropertyChangedSignal("Value"):Connect(LeafUpdateFloorGroups)
+	end
 local PlayerBox = Tabs.Main:AddLeftGroupbox('Body','person-standing')
 local GameBox = Tabs.Main:AddLeftGroupbox('Game Management','gamepad-2')
 local HotelFloor = Tabs.Floor:AddLeftGroupbox('Hotel','hotel')
@@ -1512,41 +1538,28 @@ AutoBox:AddToggle("FarmGlitchCube", {
 	Risky = true,
 	Tooltip = "Dịch xuống -3.9Y mỗi frame để Glitch Entity Xuất Hiện Để Farm Glitch Cube",
 	Callback = function(Value)
-		GlitchFarmActive = Value and true or false
-		if not Value then
-			GlitchFarmProgress = 0
-			GlitchFarmRoom = nil
-			if Notify then Notify("Farm Glitch Cube: ĐÃ DỪNG", 3) end
-		else
-			GlitchFarmProgress = 0
-			local roomAttr = LocalPlayer:GetAttribute("CurrentRoom")
-			GlitchFarmRoom = roomAttr
-			-- nếu thấy GlitchCube trong map thì lấy số phòng gần nhất
-			pcall(function()
-				for _, obj in ipairs(workspace:GetDescendants()) do
-					if obj.Name == "GlitchCube" then
-						local model = obj:FindFirstAncestorOfClass("Model")
-						local room = model and model:FindFirstAncestorWhichIsA("Model")
-						-- CurrentRooms child name thường là số phòng
-						local rooms = workspace:FindFirstChild("CurrentRooms")
-						if rooms then
-							for _, r in ipairs(rooms:GetChildren()) do
-								if obj:IsDescendantOf(r) then
-									GlitchFarmRoom = r.Name
-									break
-								end
-							end
-						end
-						break
-					end
+	Callback = function(Value)
+	GlitchFarmActive = Value and true or false
+	local char = LocalPlayer.Character
+	if not Value then
+		GlitchFarmProgress = 0
+		if char then
+			for _, p in ipairs(char:GetDescendants()) do
+				if p:IsA("BasePart") then
+					p.CanCollide = true
 				end
-			end)
-			if Notify then
-				Notify("Farm Glitch Cube: BẮT ĐẦU (Room " .. tostring(GlitchFarmRoom or "?") .. ") 0%", 3)
+			end
+			local root = char:FindFirstChild("HumanoidRootPart")
+			if root then
+				local bv = root:FindFirstChild("LeafGlitchBV")
+				if bv then bv:Destroy() end
 			end
 		end
-	end,
-})
+		if Notify then Notify("Farm Glitch: ĐÃ DỪNG", 3) end
+		return
+	end
+	if Notify then Notify("Farm Glitch: BẬT (kéo phải + no collide)", 3) end
+end
 AutoBox:AddDivider()
 AutoBox:AddToggle('AutoLibraryCode',{
 Text = "Auto Library Code",
@@ -3218,6 +3231,179 @@ end
 end
 end
 })
+-- ===== Auto Hotel (Abysall-style + hide theo entity) =====
+local AutoHotelConnection = nil
+local EntityHideDist = {
+	RushMoving = 100,
+	AmbushMoving = 140,
+	A60 = 130,
+	A120 = 90,
+	GlitchRush = 130,
+	GlitchAmbush = 160,
+	BackdoorRush = 120, -- Blitz
+}
+
+local function LeafGetNearestCloset(maxDist)
+	maxDist = maxDist or 100
+	local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not root then return nil end
+	local best, bestD = nil, maxDist
+	local rooms = workspace:FindFirstChild("CurrentRooms")
+	if not rooms then return nil end
+	for _, inst in ipairs(rooms:GetDescendants()) do
+		local n = inst.Name
+		if n == "Wardrobe" or n == "Backdoor_Wardrobe" or n == "Toolshed" or n == "RetroWardrobe"
+			or n == "Rooms_Locker" or n == "Locker_Large" or n == "Bed" then
+			local part = inst.PrimaryPart or inst:FindFirstChild("Base") or inst:FindFirstChildWhichIsA("BasePart")
+			if part then
+				local d = (part.Position - root.Position).Magnitude
+				if d < bestD then bestD, best = d, inst end
+			end
+		end
+	end
+	return best
+end
+
+local function LeafEntityThreat()
+	-- return name, model, dist
+	local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not root then return nil end
+	local bestName, bestModel, bestD = nil, nil, math.huge
+	for name, distNeed in pairs(EntityHideDist) do
+		local m = workspace:FindFirstChild(name)
+		if m and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")) then
+			local p = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+			local d = (p.Position - root.Position).Magnitude
+			if d < bestD then bestD, bestName, bestModel = d, name, m end
+		end
+	end
+	if bestName then return bestName, bestModel, bestD end
+	return nil
+end
+
+HotelFloor:AddToggle("AutoHotel", {
+	Text = "Auto Hotel",
+	Default = false,
+	Risky = true,
+	Tooltip = "Tự Hoàn Thành Màn Khách Sạn Chuyên Nghiệp",
+	Callback = function(Value)
+		if AutoHotelConnection then
+			task.cancel(AutoHotelConnection)
+			AutoHotelConnection = nil
+		end
+		if not Value then return end
+		AutoHotelConnection = task.spawn(function()
+			local lastVel = {}
+			local wasMoving = {}
+			while Toggles.AutoHotel and Toggles.AutoHotel.Value do
+				local char = LocalPlayer.Character
+				local root = char and char:FindFirstChild("HumanoidRootPart")
+				local hum = char and char:FindFirstChildOfClass("Humanoid")
+				if not root then task.wait(0.2) continue end
+
+				local ename, emodel, edist = LeafEntityThreat()
+				local need = ename and EntityHideDist[ename] or nil
+				local spoofOn = (Toggles.Godmode and Toggles.Godmode.Value)
+					or (Toggles.AutoPositionSpoof and Toggles.AutoPositionSpoof.Value)
+
+				-- Phát hiện sắp biến mất (đứng khựng / chìm)
+				local vanishing = false
+				if emodel and emodel.PrimaryPart then
+					local p = emodel.PrimaryPart
+					local id = emodel:GetDebugId()
+					local speed = p.AssemblyLinearVelocity.Magnitude
+					local prev = lastVel[id] or speed
+					lastVel[id] = speed
+					if wasMoving[id] and speed < 2 then
+						-- Ambush-like: khựng + Y tăng
+						if p.Position.Y > (prev and 0 or 0) and p.Position.Y > root.Position.Y + 5 then
+							vanishing = true
+						end
+						-- Rush-like: khựng + chìm
+						if p.Position.Y < root.Position.Y - 8 then
+							vanishing = true
+						end
+					end
+					if speed > 8 then wasMoving[id] = true end
+				end
+
+				if ename and edist and need and edist <= need then
+					-- GlitchAmbush / BackdoorRush / A60: ra-vào tủ khi >100
+					local special = (ename == "GlitchAmbush" or ename == "BackdoorRush" or ename == "A60")
+					if special and edist > 100 and LocalPlayer.Character:GetAttribute("Hiding") then
+						-- thoát tủ chờ quay lại
+						pcall(function()
+							local prompt = nil -- exit handled by game often
+						end)
+					end
+
+					if spoofOn then
+						-- BỎ QUA trốn; gần 120 studs → ép đứng im
+						if edist <= 120 and hum then
+							hum.WalkSpeed = 0
+							hum.JumpPower = 0
+							root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
+							-- đang rơi → tăng fall
+							if root.AssemblyLinearVelocity.Y < -1 then
+								root.AssemblyLinearVelocity = Vector3.new(0, -50, 0)
+							end
+							-- không cho cao hơn 3 studs so ground ray
+							local rp = RaycastParams.new()
+							rp.FilterDescendantsInstances = {char}
+							local hit = workspace:Raycast(root.Position, Vector3.new(0, -50, 0), rp)
+							if hit and (root.Position.Y - hit.Position.Y) > 3 then
+								root.CFrame = CFrame.new(root.Position.X, hit.Position.Y + 2.5, root.Position.Z)
+									* (root.CFrame - root.CFrame.Position)
+							end
+						end
+					else
+						-- TP tủ gần ≤100 + mở
+						local closet = LeafGetNearestCloset(100)
+						if closet then
+							local part = closet.PrimaryPart or closet:FindFirstChild("Base") or closet:FindFirstChildWhichIsA("BasePart")
+							if part then
+								char:PivotTo(part.CFrame * CFrame.new(0, 1, 0))
+								local prompt = closet:FindFirstChildWhichIsA("ProximityPrompt", true)
+								if prompt and (Firepp or fireproximityprompt) then
+									pcall(Firepp or fireproximityprompt, prompt)
+								end
+							end
+						end
+					end
+				elseif vanishing or not ename then
+					-- entity mất → tiếp tục hotel
+					if hum then
+						hum.WalkSpeed = Options.MovementSpeed and Options.MovementSpeed.Value or 15
+						hum.JumpPower = 50
+					end
+					-- TP cửa kế 
+					if getNextClosedDoor then
+						local door = getNextClosedDoor()
+						if door then
+							char:PivotTo(door:GetPivot() * CFrame.new(0, -1, 0))
+							if door:FindFirstChild("ClientOpen") then
+								pcall(function() door.ClientOpen:FireServer() end)
+							end
+						end
+					end
+				end
+				task.wait(0.12)
+			end
+		end)
+	end,
+})
+task.defer(function()
+	task.wait(0.5)
+	pcall(function()
+		local t = Toggles.AutoHotel
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(255,40,40)">Auto Hotel</font>'
+		end
+	end)
+end)
 BypassEntityBox:AddToggle('FigureHearing',{
 Text = "Anti Figure Hearing",
 Default = false,
@@ -3764,7 +3950,6 @@ local flatCam = CFrame.lookAt(Vector3.zero, flatLook)
 local localInput = flatCam:VectorToObjectSpace(moveDir)
 LocalPlayer.Character.HumanoidRootPart:FindFirstChild("FlightVelocity").Velocity = Camera.CFrame:VectorToWorldSpace(localInput) * Options.FlightSpeed.Value
 end
-if Toggles.Godmode.Value then
 	-- ===== Auto Position Spoof (Always On / Entity Spam) =====
 if Toggles.AutoPositionSpoof and Toggles.AutoPositionSpoof.Value then
 	local mode = "Entity Spam"
@@ -3793,6 +3978,7 @@ if Toggles.AutoPositionSpoof and Toggles.AutoPositionSpoof.Value then
 		end
 	end
 end
+if Toggles.Godmode.Value then
 	local char = LocalPlayer.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -3821,7 +4007,7 @@ end
 		if hum.HipHeight ~= 0.05 then
 			hum.HipHeight = 0.05
 		end
-		-- C1 offset (Abysall)
+		-- C1 offset
 		if char:FindFirstChild("LowerTorso") and char.LowerTorso:FindFirstChild("Root") then
 			local orig = getgenv().LeafOriginalC1 or CFrame.new()
 			char.LowerTorso.Root.C1 = orig * CFrame.new(0, -2.346, 0)
@@ -4045,76 +4231,35 @@ end
 if Toggles.FarmGlitchCube and Toggles.FarmGlitchCube.Value and GlitchFarmActive then
 	local char = LocalPlayer.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
-	if root then
-		-- mỗi frame xuống -3.9 Y (Glitch entity kéo về)
-		root.CFrame = root.CFrame * CFrame.new(0, -3.9, 0)
-
-		-- phát hiện Glitch entity / cube để tính +20%
-		local pulled = false
-		local roomName = GlitchFarmRoom or LocalPlayer:GetAttribute("CurrentRoom") or "?"
-		for _, obj in ipairs(workspace:GetChildren()) do
-			if obj.Name == "Glitch" or obj.Name == "GlitchCube" or obj.Name:find("Glitch") then
-				pulled = true
-				local rooms = workspace:FindFirstChild("CurrentRooms")
-				if rooms then
-					for _, r in ipairs(rooms:GetChildren()) do
-						if obj:IsDescendantOf(r) then
-							roomName = r.Name
-							GlitchFarmRoom = r.Name
-							break
-						end
-					end
-				end
-				break
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	-- Entity spam → thông báo + tắt
+	local spam = false
+	for _, n in ipairs({"RushMoving","AmbushMoving","A60","A120","GlitchRush","GlitchAmbush","BackdoorRush"}) do
+		if workspace:FindFirstChild(n) then spam = true break end
+	end
+	if spam then
+		if Notify then Notify("Farm Glitch: ENTITY SPAM — TẮT", 4) end
+		Toggles.FarmGlitchCube:SetValue(false)
+	elseif root then
+		for _, p in ipairs(char:GetDescendants()) do
+			if p:IsA("BasePart") then
+				p.CanCollide = false
 			end
 		end
-		-- cũng quét CurrentRooms
-		if not pulled then
-			local rooms = workspace:FindFirstChild("CurrentRooms")
-			if rooms then
-				for _, r in ipairs(rooms:GetDescendants()) do
-					if r.Name == "GlitchCube" or r.Name == "Glitch" then
-						pulled = true
-						local roomModel = r
-						while roomModel and roomModel.Parent ~= rooms do
-							roomModel = roomModel.Parent
-						end
-						if roomModel then
-							roomName = roomModel.Name
-							GlitchFarmRoom = roomName
-						end
-						break
-					end
-				end
-			end
+		if hum then
+			hum.PlatformStand = true
 		end
-
-		if pulled and GlitchFarmProgress < 100 then
-			-- mỗi lần “kéo về” +20% (debounce ~1s để không spam 100% 1 frame)
-			if not GlitchFarmActive then
-			else
-				if not rawget(getfenv(), "_GlitchFarmLast") then
-					getgenv()._GlitchFarmLast = 0
-				end
-				if tick() - (getgenv()._GlitchFarmLast or 0) >= 1.0 then
-					getgenv()._GlitchFarmLast = tick()
-					GlitchFarmProgress = math.min(100, GlitchFarmProgress + 20)
-					if Notify then
-						Notify("Glitch farm: " .. tostring(GlitchFarmProgress) .. "% (Room " .. tostring(roomName) .. ")", 2)
-					end
-					if GlitchFarmProgress >= 100 then
-						if Notify then
-							Notify("Glitch Cube đã spam trong Room " .. tostring(roomName), 5)
-						end
-						GlitchFarmActive = false
-						GlitchFarmProgress = 0
-						if Toggles.FarmGlitchCube then
-							Toggles.FarmGlitchCube:SetValue(false)
-						end
-					end
-				end
-			end
+		local bv = root:FindFirstChild("LeafGlitchBV")
+		if not bv then
+			bv = Instance.new("BodyVelocity")
+			bv.Name = "LeafGlitchBV"
+			bv.MaxForce = Vector3.new(1e5, 0, 1e5)
+			bv.P = 1250
+			bv.Parent = root
 		end
+		-- kéo sang phải liên tục (theo LookVector phải)
+		local right = root.CFrame.RightVector
+		bv.Velocity = right * 80
 	end
 end
 
@@ -4149,10 +4294,23 @@ do
 end
 -- Giữ Upside Down mỗi frame (game có thể reset Rotation)
 if Toggles.UpsideDown and Toggles.UpsideDown.Value then
-	local coll = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Collision")
-	if coll and math.abs(coll.Rotation.Z + 90) > 1 then
+	local char = LocalPlayer.Character
+	local coll = char and char:FindFirstChild("Collision")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if coll then
 		local rot = coll.Rotation
 		coll.Rotation = Vector3.new(rot.X, rot.Y, -90)
+	end
+	if root then
+		local pos = root.Position
+		local look = root.CFrame.LookVector * Vector3.new(1, 0, 1)
+		if look.Magnitude > 0.05 then
+			look = look.Unit
+		else
+			look = Vector3.new(0, 0, -1)
+		end
+		-- úp ngược: Up = -Y
+		root.CFrame = CFrame.lookAt(pos, pos + look) * CFrame.Angles(math.rad(180), 0, 0)
 	end
 end
 if Toggles.NoFog.Value then
