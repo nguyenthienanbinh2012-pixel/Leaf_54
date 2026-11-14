@@ -114,10 +114,10 @@ AutoShow = true,
 NotifySide = "Right",
 ShowCustomCursor = true,
 Footer = "obsidian-ui",
-CornerRadius = 8,
+CornerRadius = 10,
 })
-Window.MainFrame.Size = UDim2.fromOffset(550, 380)
-Window:SetSidebarWidth(190)
+Window.MainFrame.Size = UDim2.fromOffset(720, 320)
+Window:SetSidebarWidth(160)
 if Library.KeybindFrame then
 if getgenv().LeafHub_KeybindPos then
 local p = getgenv().LeafHub_KeybindPos
@@ -501,7 +501,7 @@ end
 end
 end))
 local Tabs = {
-Main = Window:AddTab('Player', "User"),
+Main = Window:AddTab('Player', "user"),
 Bypass = Window:AddTab('Bypass', "ban"),
 Visuals = Window:AddTab('Visuals',"eye"),
 Floor = Window:AddTab('Floor', "building"),
@@ -845,32 +845,6 @@ DestroyBox:AddToggle("BypassOverthrowTV", {
 		end
 	end,
 })
-local function LeafUpdateFloorGroups()
-	local f = Floor and Floor.Value or ""
-	local map = {
-		[HotelFloor] = (f == "Hotel" or f == "Hotel-" or f == "BeforePlus"),
-		[MinesFloor] = (f == "Mines"),
-		[FoolsFloor] = (f == "Fools" or f == "Fools26"),
-		[RoomsFloor] = (f == "Rooms"),
-		[RetroFloor] = (f == "Retro"),
-	}
-	for box, ok in pairs(map) do
-		pcall(function()
-			-- Obsidian: một số bản có SetVisible / Box.Visible
-			if box.SetVisible then
-				box:SetVisible(ok)
-			elseif box.Visible ~= nil then
-				box.Visible = ok
-			elseif box.Container then
-				box.Container.Visible = ok
-			end
-		end)
-	end
-end
-LeafUpdateFloorGroups()
-if Floor then
-	Floor:GetPropertyChangedSignal("Value"):Connect(LeafUpdateFloorGroups)
-	end
 local PlayerBox = Tabs.Main:AddLeftGroupbox('Body','person-standing')
 local GameBox = Tabs.Main:AddLeftGroupbox('Game Management','gamepad-2')
 local HotelFloor = Tabs.Floor:AddLeftGroupbox('Hotel','hotel')
@@ -887,6 +861,30 @@ local ESPSettings = Tabs.Visuals:AddRightGroupbox('Settings','sliders-horizontal
 local NotifyBox = Tabs.Visuals:AddRightGroupbox('Notifying','bell')
 local BypassEntityBox = Tabs.Bypass:AddLeftGroupbox('Bypass Entities','ghost')
 local BypassBox = Tabs.Bypass:AddRightGroupbox('Bypass','shield-check')
+local function LeafUpdateFloorGroups()
+	local f = Floor and Floor.Value or ""
+	local map = {}
+	if HotelFloor then map[HotelFloor] = (f == "Hotel" or f == "Hotel-" or f == "BeforePlus") end
+	if MinesFloor then map[MinesFloor] = (f == "Mines") end
+	if FoolsFloor then map[FoolsFloor] = (f == "Fools" or f == "Fools26") end
+	if RoomsFloor then map[RoomsFloor] = (f == "Rooms") end
+	if RetroFloor then map[RetroFloor] = (f == "Retro") end
+	for box, ok in pairs(map) do
+		pcall(function()
+			if box.SetVisible then
+				box:SetVisible(ok)
+			elseif box.Visible ~= nil then
+				box.Visible = ok
+			elseif box.Container then
+				box.Container.Visible = ok
+			end
+		end)
+	end
+end
+task.defer(LeafUpdateFloorGroups)
+if Floor then
+	Floor:GetPropertyChangedSignal("Value"):Connect(LeafUpdateFloorGroups)
+	end
 RetroFloor:AddToggle('AntiLava',{
 Text = "Anti Lava",
 Default = false,
@@ -4633,12 +4631,11 @@ if Toggles.UpsideDown and Toggles.UpsideDown.Value then
 	if root then
 		local pos = root.Position
 		local look = root.CFrame.LookVector * Vector3.new(1, 0, 1)
-		if look.Magnitude > 0.05 then
-			look = look.Unit
-		else
+		if look.Magnitude < 0.05 then
 			look = Vector3.new(0, 0, -1)
+		else
+			look = look.Unit
 		end
-		-- úp ngược: Up = -Y
 		root.CFrame = CFrame.lookAt(pos, pos + look) * CFrame.Angles(math.rad(180), 0, 0)
 	end
 end
