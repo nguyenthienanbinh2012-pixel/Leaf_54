@@ -1088,6 +1088,137 @@ DestroyBox:AddToggle("BypassOverthrowTV", {
 		end
 	end,
 })
+-- Teleport Entity: trước mặt entity 7.85 studs (double confirm)
+local LeafTpEntityArmed = false
+DestroyBox:AddButton({
+	Text = "Teleport Entity",
+	Func = function()
+		if not LeafTpEntityArmed then
+			LeafTpEntityArmed = true
+			if Notify then Notify("Bạn chắc chắn?", 3) end
+			task.delay(3, function() LeafTpEntityArmed = false end)
+			return
+		end
+		LeafTpEntityArmed = false
+		local char = LocalPlayer.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		if not root then return end
+		local names = {
+			"RushMoving","AmbushMoving","BackdoorRush","A60","A120",
+			"GlitchRush","GlitchAmbush","BashMoving","FrozenAmbush",
+		}
+		local best, bestD = nil, math.huge
+		for _, n in ipairs(names) do
+			local m = workspace:FindFirstChild(n)
+			if m then
+				local p = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+				if p then
+					local d = (p.Position - root.Position).Magnitude
+					if d < bestD then bestD, best = d, p end
+				end
+			end
+		end
+		if not best then
+			if Notify then Notify("Không thấy entity", 2) end
+			return
+		end
+		-- dự đoán phía trước (LookVector * tốc độ ước lượng)
+		local look = best.CFrame.LookVector
+		local vel = best.AssemblyLinearVelocity
+		if vel.Magnitude > 1 then look = vel.Unit end
+		local target = best.Position + look * 7.85
+		char:PivotTo(CFrame.new(target, target + look))
+	end,
+})
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		-- Obsidian button label đỏ (nếu có TextLabel trong group)
+		for _, d in ipairs((DestroyBox.Container or DestroyBox.Object or Instance.new("Folder")):GetDescendants()) do
+			if d:IsA("TextLabel") and d.Text == "Teleport Entity" then
+				d.RichText = true
+				d.Text = '<font color="rgb(255,40,40)">Teleport Entity</font>'
+			end
+		end
+	end)
+end)
+
+-- Avoid Collisions Entities
+local AvoidColConn = nil
+DestroyBox:AddToggle("AvoidCollisionsEntities", {
+	Text = "Avoid Collisions Entities",
+	Default = false,
+	Risky = true,
+	Tooltip = "Pivot Cơ thể về sau entity né Entity,có thể thất bại",
+	Callback = function(Value)
+		if AvoidColConn then
+			task.cancel(AvoidColConn)
+			AvoidColConn = nil
+		end
+		if not Value then return end
+		AvoidColConn = task.spawn(function()
+			local oneShot = {
+				RushMoving = true, AmbushMoving = true, BackdoorRush = true,
+				A60 = true, A120 = true, GlitchRush = true, GlitchAmbush = true,
+				BashMoving = true, FrozenAmbush = true,
+			}
+			while Toggles.AvoidCollisionsEntities and Toggles.AvoidCollisionsEntities.Value do
+				local char = LocalPlayer.Character
+				local root = char and char:FindFirstChild("HumanoidRootPart")
+				if root then
+					for name in pairs(oneShot) do
+						local m = workspace:FindFirstChild(name)
+						local part = m and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart"))
+						if part then
+							local d = (part.Position - root.Position).Magnitude
+							if d <= 185 then
+								local look = part.AssemblyLinearVelocity.Magnitude > 1
+									and part.AssemblyLinearVelocity.Unit
+									or part.CFrame.LookVector
+								local behind = part.Position - look * 95
+								local ok = false
+								for attempt = 1, 15 do
+									if not (Toggles.AvoidCollisionsEntities and Toggles.AvoidCollisionsEntities.Value) then break end
+									char:PivotTo(CFrame.new(behind, behind + look))
+									task.wait(0.01)
+									local nr = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+									if nr and (nr.Position - behind).Magnitude <= 8 then
+										ok = true
+										break
+									end
+									-- cập nhật behind theo entity đang chạy
+									part = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart") or part
+									look = part.AssemblyLinearVelocity.Magnitude > 1 and part.AssemblyLinearVelocity.Unit or part.CFrame.LookVector
+									behind = part.Position - look * 95
+								end
+								if not ok then
+									if Notify then
+										Notify("Né Va chạm.....Thất bại! (" .. name .. ")", 4)
+									end
+									-- thả player (không khóa move)
+								end
+								task.wait(0.4)
+							end
+						end
+					end
+				end
+				task.wait(0.05)
+			end
+		end)
+	end,
+})
+task.defer(function()
+	task.wait(0.45)
+	pcall(function()
+		local t = Toggles.AvoidCollisionsEntities
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(255,40,40)">Avoid Collisions Entities</font>'
+		end
+	end)
+end)
 local PlayerBox = Tabs.Main:AddLeftGroupbox('Body','person-standing')
 local GameBox = Tabs.Main:AddLeftGroupbox('Game Management','gamepad-2')
 local HotelFloor = Tabs.Floor:AddLeftGroupbox('Hotel','hotel')
@@ -1296,7 +1427,7 @@ BypassBox:AddButton({
 	Func = function()
 		local char = LocalPlayer.Character
 		if not char then return end
-		char:PivotTo(CFrame.new(930, 50, 0)) -- +930 X, Y 50 (đổi Z nếu cần)
+		char:PivotTo(CFrame.new(9300, 50, 0)) -- +930 X, Y 50 (đổi Z nếu cần)
 	end,
 })
 
@@ -3862,7 +3993,6 @@ local EntityHideDist = {
 	GlitchAmbush = 160,
 	BackdoorRush = 120, -- Blitz
 }
-
 local function LeafGetNearestCloset(maxDist)
 	maxDist = maxDist or 100
 	local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -3884,22 +4014,40 @@ local function LeafGetNearestCloset(maxDist)
 	return best
 end
 
-local function LeafEntityThreat()
-	-- return name, model, dist
-	local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-	if not root then return nil end
-	local bestName, bestModel, bestD = nil, nil, math.huge
-	for name, distNeed in pairs(EntityHideDist) do
-		local m = workspace:FindFirstChild(name)
-		if m and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")) then
-			local p = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
-			local d = (p.Position - root.Position).Magnitude
-			if d < bestD then bestD, bestName, bestModel = d, name, m end
-		end
+local function LeafHideInCloset(closet)
+	if not closet then return false end
+	local char = LocalPlayer.Character
+	if not char then return false end
+	local part = closet.PrimaryPart or closet:FindFirstChild("Base") or closet:FindFirstChildWhichIsA("BasePart")
+	if not part then return false end
+	-- đứng sát tủ
+	char:PivotTo(part.CFrame * CFrame.new(0, 1.2, 0))
+	task.wait(0.08)
+	-- ưu tiên HidePrompt (Abysall)
+	local hide = closet:FindFirstChild("HidePrompt", true)
+	local fire = Firepp or fireproximityprompt
+	if hide and fire then
+		pcall(function()
+			hide.MaxActivationDistance = math.max(hide.MaxActivationDistance, 15)
+			hide.RequiresLineOfSight = false
+			fire(hide)
+			pcall(fire, hide, true)
+		end)
+	else
+		local pr = closet:FindFirstChildWhichIsA("ProximityPrompt", true)
+		if pr and fire then pcall(fire, pr) end
 	end
-	if bestName then return bestName, bestModel, bestD end
-	return nil
-end
+	-- ép trạng thái ẩn nếu game set attribute
+	task.delay(0.15, function()
+		pcall(function()
+			if char:GetAttribute("Hiding") ~= true then
+				-- fire lại 1 lần
+				if hide and fire then fire(hide) end
+			end
+		end)
+	end)
+	return true
+	end
 
 HotelFloor:AddToggle("AutoHotel", {
 	Text = "Auto Hotel",
@@ -3979,17 +4127,9 @@ HotelFloor:AddToggle("AutoHotel", {
 					else
 						-- TP tủ gần ≤100 + mở
 						local closet = LeafGetNearestCloset(100)
-						if closet then
-							local part = closet.PrimaryPart or closet:FindFirstChild("Base") or closet:FindFirstChildWhichIsA("BasePart")
-							if part then
-								char:PivotTo(part.CFrame * CFrame.new(0, 1, 0))
-								local prompt = closet:FindFirstChildWhichIsA("ProximityPrompt", true)
-								if prompt and (Firepp or fireproximityprompt) then
-									pcall(Firepp or fireproximityprompt, prompt)
-								end
-							end
-						end
-					end
+if closet then
+	LeafHideInCloset(closet)
+end
 				elseif vanishing or not ename then
 					-- entity mất → tiếp tục hotel
 					if hum then
@@ -4012,6 +4152,35 @@ HotelFloor:AddToggle("AutoHotel", {
 		end)
 	end,
 })
+-- Nhặt chìa (Abysall-style KeyObtain)
+do
+	local rooms = workspace:FindFirstChild("CurrentRooms")
+	local roomNum = tonumber(LocalPlayer:GetAttribute("CurrentRoom")) or 0
+	local room = rooms and rooms:FindFirstChild(tostring(roomNum))
+	if room then
+		local door = room:FindFirstChild("Door")
+		if door and door:FindFirstChild("Lock") then
+			local hasKey = LocalPlayer.Backpack:FindFirstChild("Key")
+				or (char and char:FindFirstChild("Key"))
+			if not hasKey then
+				for _, d in ipairs(room:GetDescendants()) do
+					if d.Name == "KeyObtain" or (d.Name == "Key" and d:IsA("Model")) then
+						char:PivotTo(d:GetPivot() * CFrame.new(0, 1, 0))
+						task.wait(0.1)
+						for _, pr in ipairs(d:GetDescendants()) do
+							if pr:IsA("ProximityPrompt") then
+								local f = Firepp or fireproximityprompt
+								if f then pcall(f, pr) end
+							end
+						end
+						task.wait(0.15)
+						break
+					end
+				end
+			end
+		end
+	end
+end
 task.defer(function()
 	task.wait(0.5)
 	pcall(function()
@@ -4859,7 +5028,6 @@ if Toggles.EnableJump.Value then
 		LocalPlayer.Character:SetAttribute("CanJump", true)
 	end
 end
-if parent.Name == "KeyObtainFake" or parent.Name == "Mandrake" then continue end
 if (Toggles.AutoInteract and Toggles.AutoInteract.Value)
 	or (Options.AutoInteractKeybind and Options.AutoInteractKeybind:GetState()) then
 	AutoInteract = AutoInteract + (dt or 0.016)
@@ -4985,41 +5153,43 @@ if Toggles.FarmGlitchCube and Toggles.FarmGlitchCube.Value and GlitchFarmActive 
 	local char = LocalPlayer.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
-	local spam = false
-	if root then
+	if not root then
+		-- không return khỏi RenderStepped — chỉ bỏ farm frame này
+	else
+		local spam = false
 		for _, n in ipairs({"RushMoving","AmbushMoving","A60","A120","GlitchRush","GlitchAmbush","BackdoorRush"}) do
 			local ent = workspace:FindFirstChild(n)
-			if ent and ent.PrimaryPart then
-				if (ent.PrimaryPart.Position - root.Position).Magnitude < 80 then
-					spam = true
-					break
-				end
-			elseif ent then
-				local pp = ent:FindFirstChildWhichIsA("BasePart")
-				if pp and (pp.Position - root.Position).Magnitude < 80 then
+			if ent then
+				local pp = ent.PrimaryPart or ent:FindFirstChildWhichIsA("BasePart")
+				if pp and (pp.Position - root.Position).Magnitude < 90 then
 					spam = true
 					break
 				end
 			end
 		end
-	end
-	if spam then
-		if Notify then Notify("Farm Glitch: ENTITY GẦN — TẮT", 4) end
-		Toggles.FarmGlitchCube:SetValue(false)
-	elseif root and char then
-		for _, name in ipairs({"Collision", "CollisionPart", "CollisionClone"}) do
-			local p = char:FindFirstChild(name)
-			if p and p:IsA("BasePart") then
-				p.CanCollide = false
+		if spam then
+			if Notify then Notify("Farm Glitch: ENTITY GẦN — TẮT", 4) end
+			Toggles.FarmGlitchCube:SetValue(false)
+		else
+			for _, name in ipairs({"Collision", "CollisionPart", "CollisionClone"}) do
+				local p = char:FindFirstChild(name)
+				if p and p:IsA("BasePart") then p.CanCollide = false end
 			end
-		end
-		-- CFrame kéo phải mỗi frame (không dựa BV bị anticheat nuốt)
-		local right = root.CFrame.RightVector
-		local step = 2.8 -- studs / frame
-		root.CFrame = root.CFrame + Vector3.new(right.X * step, 0.15, right.Z * step)
-		root.AssemblyLinearVelocity = Vector3.new(right.X * 55, 8, right.Z * 55)
-		if hum then
-			hum.PlatformStand = false
+			-- BodyVelocity (không BodyGyro)
+			local bv = root:FindFirstChild("LeafGlitchBV")
+			if not bv or not bv:IsA("BodyVelocity") then
+				if bv then bv:Destroy() end
+				bv = Instance.new("BodyVelocity")
+				bv.Name = "LeafGlitchBV"
+				bv.MaxForce = Vector3.new(1e5, 1e4, 1e5)
+				bv.P = 5000
+				bv.Parent = root
+			end
+			local right = root.CFrame.RightVector
+			bv.Velocity = Vector3.new(right.X * 90, 12, right.Z * 90)
+			-- backup CFrame nếu BV bị nuốt
+			root.CFrame = root.CFrame + Vector3.new(right.X * 1.2, 0.05, right.Z * 1.2)
+			if hum then hum.PlatformStand = false end
 		end
 	end
 end
