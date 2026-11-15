@@ -5043,7 +5043,6 @@ if Toggles.LookmanDamage and Toggles.LookmanDamage.Value then
 		end
 	end
 end
-end
 if Toggles.Screech and Toggles.Screech.Value then
 	local cam = workspace.CurrentCamera
 	if cam then
