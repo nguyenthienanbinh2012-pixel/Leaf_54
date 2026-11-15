@@ -967,6 +967,19 @@ BringBox:AddSlider("OrbitDroppedItemsSpeed", {
 	Rounding = 1,
 	Compact = false,
 })
+-- Bring Item: item gần ≤14.5 studs → dính trên đầu (+1.25)
+local BringItemNames = {
+	Key = true, KeyObtain = true, Vitamin = true, Vitamins = true,
+	Lockpick = true, LockPick = true, Crucifix = true, SkeletonKey = true,
+	Candle = true, Lighter = true, Flashlight = true, Shakelight = true,
+	Battery = true, Bandage = true, AlarmClock = true, TipJar = true,
+}
+
+BringBox:AddToggle("BringItem", {
+	Text = "Bring Item",
+	Default = false,
+	Tooltip = "Bring các Item Lên đầu player trong phạm vi game cho phép",
+})
 local DestroyBox = Tabs.Other:AddRightGroupbox("Destroy", "bomb")
 
 -- Hạ TV xuống void (Abysall Under Map Y=-120) — CHỮ ĐỎ
@@ -1256,7 +1269,7 @@ task.spawn(function()
 		if not Options.TeleportPlayerTarget then break end
 		local names = { "Nearest" }
 		for _, plr in ipairs(Players:GetPlayers()) do
-			if plr \~= LocalPlayer then table.insert(names, plr.Name) end
+			if plr ~= LocalPlayer then table.insert(names, plr.Name) end
 		end
 		pcall(function() Options.TeleportPlayerTarget:SetValues(names) end)
 	end
@@ -4847,6 +4860,57 @@ if (Toggles.AutoInteract and Toggles.AutoInteract.Value)
 		end
 	end
 end
+-- Bring Item (bám đầu, không delay)
+if Toggles.BringItem and Toggles.BringItem.Value then
+	local char = LocalPlayer.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if root then
+		local headCF = root.CFrame * CFrame.new(0, 1.25 + 1.5, 0) -- cao hơn đầu ~1.25
+		local function tryBring(obj)
+			if not obj or not obj.Parent then return end
+			local n = obj.Name
+			if not BringItemNames[n] then
+				local low = string.lower(n)
+				if not (low:find("key") or low:find("vitamin") or low:find("lock")
+					or low:find("crucifix") or low:find("candle") or low:find("lighter")
+					or low:find("flash") or low:find("bandage") or low:find("battery")) then
+					return
+				end
+			end
+			local part = obj:IsA("BasePart") and obj
+				or (obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")))
+			if not part then return end
+			local d = (part.Position - root.Position).Magnitude
+			if d <= 14.5 then
+				pcall(function()
+					if obj:IsA("Model") and obj.PivotTo then
+						obj:PivotTo(headCF)
+					else
+						part.CFrame = headCF
+					end
+					part.AssemblyLinearVelocity = Vector3.zero
+					part.AssemblyAngularVelocity = Vector3.zero
+				end)
+			end
+		end
+		local drops = workspace:FindFirstChild("Drops")
+		if drops then
+			for _, it in ipairs(drops:GetChildren()) do tryBring(it) end
+		end
+		local rooms = workspace:FindFirstChild("CurrentRooms")
+		if rooms then
+			local roomNum = tostring(LocalPlayer:GetAttribute("CurrentRoom") or "")
+			local room = rooms:FindFirstChild(roomNum)
+			if room then
+				for _, it in ipairs(room:GetDescendants()) do
+					if it:IsA("Model") or it:IsA("BasePart") then
+						tryBring(it)
+					end
+				end
+			end
+		end
+	end
+end
 if Toggles.FarmGlitchCube and Toggles.FarmGlitchCube.Value and GlitchFarmActive then
 	local char = LocalPlayer.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -4955,15 +5019,6 @@ if Toggles.LookmanDamage and Toggles.LookmanDamage.Value then
 			end)
 		end
 	end
-end
-end
-end
-end
-if Toggles.LookmanDamage.Value then
-if workspace:FindFirstChild("BackdoorLookman") then
-if not LocalPlayer.Character:GetAttribute("Hiding") then
-MotorReplication:FireServer(-650)
-end
 end
 end
 if Toggles.Screech and Toggles.Screech.Value then
