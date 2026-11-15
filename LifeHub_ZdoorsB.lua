@@ -912,7 +912,7 @@ BringBox:AddToggle("OrbitDroppedItems", {
 			end
 			local count = #list
 			if count == 0 then return end
-			-- Mỗi 10s kéo về gần để chống despawn (Abysall)
+			-- Mỗi 10s kéo về gần để chống despawn
 			if now - OrbitDroppedItemsLastTeleport >= 10 then
 				OrbitDroppedItemsLastTeleport = now
 				OrbitDroppedItemsPauseUntil = now + 2
@@ -969,16 +969,34 @@ BringBox:AddSlider("OrbitDroppedItemsSpeed", {
 })
 -- Bring Item: item gần ≤14.5 studs → dính trên đầu (+1.25)
 local BringItemNames = {
-	Key = true, KeyObtain = true, Vitamin = true, Vitamins = true,
-	Lockpick = true, LockPick = true, Crucifix = true, SkeletonKey = true,
+	Key = true, KeyObtain = true,
+	Vitamin = true, Vitamins = true,
+	Lockpick = true, LockPick = true,
+	Crucifix = true, SkeletonKey = true,
 	Candle = true, Lighter = true, Flashlight = true, Shakelight = true,
-	Battery = true, Bandage = true, AlarmClock = true, TipJar = true,
+	Battery = true, Bandage = true, AlarmClock = true,
 }
+-- chỉ Model pickup (có ProximityPrompt), không part map
+local LeafBrought = {} -- [Instance] = {canCollide=..., massless=..., anchored=...}
 
 BringBox:AddToggle("BringItem", {
 	Text = "Bring Item",
 	Default = false,
-	Tooltip = "Bring các Item Lên đầu player trong phạm vi game cho phép",
+	Tooltip = "Bring Các Item trong phạm vi game cho phép",
+	Callback = function(Value)
+		if not Value then
+			for obj, old in pairs(LeafBrought) do
+				pcall(function()
+					if obj and obj.Parent and obj:IsA("BasePart") then
+						obj.CanCollide = old.canCollide
+						obj.Massless = old.massless
+						obj.Anchored = old.anchored
+					end
+				end)
+			end
+			table.clear(LeafBrought)
+		end
+	end,
 })
 local DestroyBox = Tabs.Other:AddRightGroupbox("Destroy", "bomb")
 
@@ -4841,6 +4859,7 @@ if Toggles.EnableJump.Value then
 		LocalPlayer.Character:SetAttribute("CanJump", true)
 	end
 end
+if parent.Name == "KeyObtainFake" or parent.Name == "Mandrake" then continue end
 if (Toggles.AutoInteract and Toggles.AutoInteract.Value)
 	or (Options.AutoInteractKeybind and Options.AutoInteractKeybind:GetState()) then
 	AutoInteract = AutoInteract + (dt or 0.016)
@@ -4853,31 +4872,54 @@ if (Toggles.AutoInteract and Toggles.AutoInteract.Value)
 		if root and fireppFunc then
 			local hrpPos = root.Position
 			local reachDist = (Options.AutoInteractreach and Options.AutoInteractreach.Value) or 12
+			local function tryPrompt(prompt)
+				if not prompt or not prompt:IsA("ProximityPrompt") then return end
+				if PromptIgnore[prompt.Name] then return end
+				local parent = prompt.Parent
+				if not parent then return end
+				if parent.Name == "SeatPart" or parent.Name == "Seat" or parent.Name == "Chair"
+					or parent:IsA("Seat") or parent:IsA("VehicleSeat") then return end
+				if parent.Name == "Padlock" or parent:GetAttribute("JeffShop") then return end
+				if parent.Name == "KeyObtainFake" or parent.Name == "Mandrake" then return end
+				if parent.Name == "GoldPile" and Floor and Floor.Value == "Fools" then return end
+				if prompt:GetAttribute("InfItems") and prompt.Name ~= "InfPrompt" then return end
+				local last = AutoInteractCooldowns[prompt]
+				if last and (tick() - last) < 0.12 then return end
+				local targetPart = parent:IsA("BasePart") and parent
+					or (parent:IsA("Model") and (parent.PrimaryPart or parent:FindFirstChildWhichIsA("BasePart")))
+				if not targetPart then return end
+				if (hrpPos - targetPart.Position).Magnitude > reachDist then return end
+				-- boost range tạm
+				if not prompt:GetAttribute("LeafMaxOld") then
+					prompt:SetAttribute("LeafMaxOld", prompt.MaxActivationDistance)
+				end
+				prompt.MaxActivationDistance = math.max(prompt.MaxActivationDistance, reachDist + 2)
+				prompt.RequiresLineOfSight = false
+				pcall(function()
+					-- hold để prompt HoldDuration
+					fireppFunc(prompt)
+					if typeof(fireppFunc) == "function" then
+						pcall(fireppFunc, prompt, true) -- một số executor: (prompt, hold)
+					end
+				end)
+				AutoInteractCooldowns[prompt] = tick()
+			end
 			local rooms = workspace:FindFirstChild("CurrentRooms")
 			if rooms then
 				for _, prompt in ipairs(rooms:GetDescendants()) do
-					if prompt:IsA("ProximityPrompt") and prompt.Enabled then
-						if PromptIgnore[prompt.Name] then continue end
-						local parent = prompt.Parent
-						if not parent then continue end
-						-- ghế
-						if parent.Name == "SeatPart" or parent.Name == "Seat" or parent.Name == "Chair"
-							or parent:IsA("Seat") or parent:IsA("VehicleSeat") then
-							continue
-						end
-						if parent.Name == "Padlock" or parent:GetAttribute("JeffShop") then continue end
-						if parent.Name == "KeyObtainFake" or parent.Name == "Mandrake" then continue end
-						if parent.Name == "GoldPile" and Floor and Floor.Value == "Fools" then continue end
-						if prompt:GetAttribute("InfItems") and prompt.Name ~= "InfPrompt" then continue end
-						local last = AutoInteractCooldowns[prompt]
-						if last and (tick() - last) < 0.15 then continue end
-						local targetPart = parent:IsA("BasePart") and parent
-							or (parent:IsA("Model") and (parent.PrimaryPart or parent:FindFirstChildWhichIsA("BasePart")))
-						if targetPart and (hrpPos - targetPart.Position).Magnitude <= reachDist then
-							pcall(fireppFunc, prompt)
-							AutoInteractCooldowns[prompt] = tick()
-						end
-					end
+					tryPrompt(prompt)
+				end
+			end
+			-- prompt gần nhân vật (item trên người / drops)
+			if char then
+				for _, prompt in ipairs(char:GetDescendants()) do
+					tryPrompt(prompt)
+				end
+			end
+			local drops = workspace:FindFirstChild("Drops")
+			if drops then
+				for _, prompt in ipairs(drops:GetDescendants()) do
+					tryPrompt(prompt)
 				end
 			end
 		end
@@ -4888,46 +4930,51 @@ if Toggles.BringItem and Toggles.BringItem.Value then
 	local char = LocalPlayer.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
 	if root then
-		local headCF = root.CFrame * CFrame.new(0, 1.25 + 1.5, 0) -- cao hơn đầu ~1.25
-		local function tryBring(obj)
-			if not obj or not obj.Parent then return end
-			local n = obj.Name
-			if not BringItemNames[n] then
-				local low = string.lower(n)
-				if not (low:find("key") or low:find("vitamin") or low:find("lock")
-					or low:find("crucifix") or low:find("candle") or low:find("lighter")
-					or low:find("flash") or low:find("bandage") or low:find("battery")) then
-					return
-				end
-			end
-			local part = obj:IsA("BasePart") and obj
-				or (obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")))
+		local headCF = root.CFrame * CFrame.new(0, 2.75, 0)
+		local function isPickupModel(obj)
+			if not obj or not obj:IsA("Model") then return false end
+			if not BringItemNames[obj.Name] then return false end
+			-- phải có prompt nhặt (tránh model map trùng tên)
+			if not obj:FindFirstChildWhichIsA("ProximityPrompt", true) then return false end
+			return true
+		end
+		local function bringOne(obj)
+			if not isPickupModel(obj) then return end
+			local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
 			if not part then return end
-			local d = (part.Position - root.Position).Magnitude
-			if d <= 14.5 then
-				pcall(function()
-					if obj:IsA("Model") and obj.PivotTo then
-						obj:PivotTo(headCF)
-					else
-						part.CFrame = headCF
+			if (part.Position - root.Position).Magnitude > 14.5 then return end
+			pcall(function()
+				for _, p in ipairs(obj:GetDescendants()) do
+					if p:IsA("BasePart") then
+						if not LeafBrought[p] then
+							LeafBrought[p] = {
+								canCollide = p.CanCollide,
+								massless = p.Massless,
+								anchored = p.Anchored,
+							}
+						end
+						p.CanCollide = false
+						p.Massless = true
+						p.AssemblyLinearVelocity = Vector3.zero
+						p.AssemblyAngularVelocity = Vector3.zero
 					end
-					part.AssemblyLinearVelocity = Vector3.zero
-					part.AssemblyAngularVelocity = Vector3.zero
-				end)
-			end
+				end
+				obj:PivotTo(headCF)
+			end)
 		end
 		local drops = workspace:FindFirstChild("Drops")
 		if drops then
-			for _, it in ipairs(drops:GetChildren()) do tryBring(it) end
+			for _, it in ipairs(drops:GetChildren()) do bringOne(it) end
 		end
 		local rooms = workspace:FindFirstChild("CurrentRooms")
-		if rooms then
-			local roomNum = tostring(LocalPlayer:GetAttribute("CurrentRoom") or "")
-			local room = rooms:FindFirstChild(roomNum)
-			if room then
-				for _, it in ipairs(room:GetDescendants()) do
-					if it:IsA("Model") or it:IsA("BasePart") then
-						tryBring(it)
+		local room = rooms and rooms:FindFirstChild(tostring(LocalPlayer:GetAttribute("CurrentRoom") or ""))
+		if room then
+			for _, it in ipairs(room:GetChildren()) do -- GetChildren: không duyệt mọi part
+				bringOne(it)
+				-- item thường nằm trong Assets/Props 1 tầng
+				if it:IsA("Folder") or it:IsA("Model") then
+					for _, ch in ipairs(it:GetChildren()) do
+						bringOne(ch)
 					end
 				end
 			end
@@ -4939,35 +4986,41 @@ if Toggles.FarmGlitchCube and Toggles.FarmGlitchCube.Value and GlitchFarmActive 
 	local root = char and char:FindFirstChild("HumanoidRootPart")
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	local spam = false
-	for _, n in ipairs({"RushMoving","AmbushMoving","A60","A120","GlitchRush","GlitchAmbush","BackdoorRush"}) do
-		if workspace:FindFirstChild(n) then spam = true break end
+	if root then
+		for _, n in ipairs({"RushMoving","AmbushMoving","A60","A120","GlitchRush","GlitchAmbush","BackdoorRush"}) do
+			local ent = workspace:FindFirstChild(n)
+			if ent and ent.PrimaryPart then
+				if (ent.PrimaryPart.Position - root.Position).Magnitude < 80 then
+					spam = true
+					break
+				end
+			elseif ent then
+				local pp = ent:FindFirstChildWhichIsA("BasePart")
+				if pp and (pp.Position - root.Position).Magnitude < 80 then
+					spam = true
+					break
+				end
+			end
+		end
 	end
 	if spam then
-		if Notify then Notify("Farm Glitch: ENTITY SPAM — TẮT", 4) end
+		if Notify then Notify("Farm Glitch: ENTITY GẦN — TẮT", 4) end
 		Toggles.FarmGlitchCube:SetValue(false)
 	elseif root and char then
-		-- chỉ tắt collide hitbox chính (không đụng mọi part → ít kẹt)
-		for _, name in ipairs({"Collision", "CollisionPart", "CollisionClone", "UpperTorso", "LowerTorso", "HumanoidRootPart"}) do
+		for _, name in ipairs({"Collision", "CollisionPart", "CollisionClone"}) do
 			local p = char:FindFirstChild(name)
 			if p and p:IsA("BasePart") then
 				p.CanCollide = false
 			end
 		end
+		-- CFrame kéo phải mỗi frame (không dựa BV bị anticheat nuốt)
+		local right = root.CFrame.RightVector
+		local step = 2.8 -- studs / frame
+		root.CFrame = root.CFrame + Vector3.new(right.X * step, 0.15, right.Z * step)
+		root.AssemblyLinearVelocity = Vector3.new(right.X * 55, 8, right.Z * 55)
 		if hum then
 			hum.PlatformStand = false
-			hum:ChangeState(Enum.HumanoidStateType.Running)
 		end
-		local bv = root:FindFirstChild("LeafGlitchBV")
-		if not bv then
-			bv = Instance.new("BodyVelocity")
-			bv.Name = "LeafGlitchBV"
-			bv.MaxForce = Vector3.new(1e5, 1e4, 1e5)
-			bv.P = 3000
-			bv.Parent = root
-		end
-		local right = root.CFrame.RightVector
-		bv.Velocity = Vector3.new(right.X * 95, 6, right.Z * 95) -- hơi nhấc + kéo phải
-		root.AssemblyLinearVelocity = Vector3.new(right.X * 40, root.AssemblyLinearVelocity.Y, right.Z * 40)
 	end
 end
 
