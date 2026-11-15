@@ -1094,21 +1094,44 @@ local function LeafUpdateFloorGroups()
 	if FoolsFloor then map[FoolsFloor] = (f == "Fools" or f == "Fools26") end
 	if RoomsFloor then map[RoomsFloor] = (f == "Rooms") end
 	if RetroFloor then map[RetroFloor] = (f == "Retro") end
+
 	for box, ok in pairs(map) do
 		pcall(function()
-			if box.SetVisible then
-				box:SetVisible(ok)
-			elseif box.Visible ~= nil then
-				box.Visible = ok
-			elseif box.Container then
-				box.Container.Visible = ok
+			local container = box.Container or box.Holder or box.Frame
+				or (box.Object and (box.Object:IsA("GuiObject") and box.Object or box.Object:FindFirstChildWhichIsA("GuiObject", true)))
+			if not container or not container:IsA("GuiObject") then
+				-- fallback: thử Visible vẫn hiện
+				if box.SetVisible then box:SetVisible(true)
+				elseif box.Visible ~= nil then box.Visible = true end
+				return
+			end
+			container.Visible = true
+			container.Active = ok and true or false
+			-- mờ khi sai floor
+			if container:IsA("GuiObject") then
+				container.BackgroundTransparency = ok and (container:GetAttribute("LeafBgT") or 0) or 0.55
+				if not container:GetAttribute("LeafBgT") then
+					container:SetAttribute("LeafBgT", container.BackgroundTransparency)
+				end
+			end
+			-- khóa mọi nút / toggle con
+			for _, d in ipairs(container:GetDescendants()) do
+				if d:IsA("TextButton") or d:IsA("ImageButton") or d:IsA("TextBox") then
+					d.Active = ok
+					d.AutoButtonColor = ok
+					if d:IsA("GuiObject") then
+						d.BackgroundTransparency = ok and (d:GetAttribute("LeafBgT") or d.BackgroundTransparency) or math.min(0.7, (d.BackgroundTransparency or 0) + 0.35)
+					end
+				elseif d:IsA("TextLabel") or d:IsA("TextButton") then
+					if not ok then
+						d.TextTransparency = 0.45
+					else
+						d.TextTransparency = 0
+					end
+				end
 			end
 		end)
 	end
-end
-task.defer(LeafUpdateFloorGroups)
-if Floor then
-	Floor:GetPropertyChangedSignal("Value"):Connect(LeafUpdateFloorGroups)
 	end
 RetroFloor:AddToggle('AntiLava',{
 Text = "Anti Lava",
@@ -5119,7 +5142,6 @@ if LocalPlayer.Character:FindFirstChild("Collision") then
 LocalPlayer.Character.Collision.CanCollide = (LocalPlayer.Character.Collision.CollisionGroup == "PlayerCrouching" and false or LocalPlayer.Character.Collision.CollisionGroup ~= "PlayerCrouching" and true)
 if LocalPlayer.Character.Collision:FindFirstChild("CollisionCrouch") then
 LocalPlayer.Character.Collision.CollisionCrouch.CanCollide = LocalPlayer.Character.Collision.CanCollide
-end
 end
 end
 end
