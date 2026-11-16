@@ -4542,11 +4542,127 @@ Toggles.Player:SetValue(true)
 end,
 })
 BypassBox:AddDivider()
-BypassBox:AddLabel("Infinite Crucfix Only Works on A-60, A-120, Rush, Ambush. Have a chance to fail",true)
-BypassBox:AddToggle('InfCrucifix',{
-Text = "Infinite Crucifix ",
-Risky = true,
+BypassBox:AddToggle("InfCrucifix", {
+	Text = "Infinite Crucifix",
+	Default = false,
+	Tooltip = "Risky! Bạn Có thể chết Hoặc mất Crucifix.Yêu cầu FPS trên 35 Ping ổn định.",
+	Risky = true,
 })
+
+do
+	local InfCrucifixDropTable = {
+		RushMoving   = 54,
+		AmbushMoving = 67,
+		A60          = 70,
+		GlitchRush   = 120,
+		GlitchAmbush = 155,
+		A120         = 75,
+	}
+
+	local InfCrucifixConnection = nil
+
+	local function LeafInfCrucifixOnChanged(Value)
+		if InfCrucifixConnection then
+			InfCrucifixConnection:Disconnect()
+			InfCrucifixConnection = nil
+		end
+
+		if not Value then
+			return
+		end
+
+		local InfCrucifixRaycastParams = RaycastParams.new()
+		InfCrucifixRaycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+		InfCrucifixConnection = RunService.RenderStepped:Connect(function()
+			if not Toggles.InfCrucifix.Value then
+				if InfCrucifixConnection then
+					InfCrucifixConnection:Disconnect()
+					InfCrucifixConnection = nil
+				end
+				return
+			end
+
+			local InfCrucifixCharacter = LocalPlayer.Character
+			if not InfCrucifixCharacter then
+				return
+			end
+
+			local InfCrucifixCollision = InfCrucifixCharacter:FindFirstChild("CollisionPart")
+				or InfCrucifixCharacter:FindFirstChild("Collision")
+				or InfCrucifixCharacter:FindFirstChild("HumanoidRootPart")
+			if not InfCrucifixCollision then
+				return
+			end
+
+			InfCrucifixRaycastParams.FilterDescendantsInstances = { InfCrucifixCharacter }
+
+			for _, InfCrucifixEntity in ipairs(workspace:GetChildren()) do
+				local InfCrucifixMaxDistance = InfCrucifixDropTable[InfCrucifixEntity.Name]
+				if not InfCrucifixMaxDistance or not InfCrucifixEntity.PrimaryPart then
+					continue
+				end
+
+				InfCrucifixEntity.PrimaryPart.CanCollide = true
+				InfCrucifixEntity.PrimaryPart.CanQuery = true
+
+				local InfCrucifixOrigin = InfCrucifixCollision.Position
+				local InfCrucifixDirection = InfCrucifixEntity.PrimaryPart.Position - InfCrucifixOrigin
+				local InfCrucifixRayResult = workspace:Raycast(InfCrucifixOrigin, InfCrucifixDirection, InfCrucifixRaycastParams)
+
+				if not InfCrucifixRayResult or not InfCrucifixRayResult.Instance:IsDescendantOf(InfCrucifixEntity) then
+					continue
+				end
+
+				local InfCrucifixDistance = (InfCrucifixCollision.Position - InfCrucifixEntity.PrimaryPart.Position).Magnitude
+				if InfCrucifixDistance >= InfCrucifixMaxDistance then
+					continue
+				end
+
+				local InfCrucifixTool = InfCrucifixCharacter:FindFirstChildOfClass("Tool")
+				if not InfCrucifixTool or InfCrucifixTool.Name ~= "Crucifix" then
+					continue
+				end
+
+				task.spawn(function()
+					local remotes = RemotesFolder
+					if remotes and remotes:FindFirstChild("DropItem") then
+						remotes.DropItem:FireServer(InfCrucifixTool)
+					end
+					task.wait(0.54)
+					local InfCrucifixDrops = workspace:FindFirstChild("Drops")
+					if not InfCrucifixDrops then
+						return
+					end
+
+					local InfCrucifixDropped = InfCrucifixDrops:FindFirstChild("Crucifix")
+					if not InfCrucifixDropped then
+						return
+					end
+
+					local InfCrucifixPrompt = InfCrucifixDropped:FindFirstChildOfClass("ProximityPrompt")
+					local fire = Firepp or fireproximityprompt
+					if InfCrucifixPrompt and fire then
+						fire(InfCrucifixPrompt)
+					end
+				end)
+				task.wait(0.6)
+			end
+		end)
+	end
+
+	pcall(function()
+		if Toggles.InfCrucifix.OnChanged then
+			Toggles.InfCrucifix:OnChanged(LeafInfCrucifixOnChanged)
+		end
+	end)
+	task.defer(function()
+		task.wait(0.2)
+		if Toggles.InfCrucifix and Toggles.InfCrucifix.Value then
+			LeafInfCrucifixOnChanged(true)
+		end
+	end)
+	end
 BypassBox:AddDivider()
 local Stored = {}
 local Names = {
@@ -5137,40 +5253,6 @@ if not HookMeta then
 if Toggles.FigureHearing.Value then
 if RemotesFolder:FindFirstChild("Crouch") then
 RemotesFolder.Crouch:FireServer(true)
-end
-end
-end
-if Toggles.InfCrucifix.Value and not Toggles.Godmode.Value and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-local Origin = LocalPlayer.Character.HumanoidRootPart.Position
-local Tool = LocalPlayer.Character:FindFirstChild("Crucifix")
-if Tool then
-for _, Entity in pairs(workspace:GetChildren()) do
-local MaxRange = InfCrucfixTable[Entity.Name]
-if MaxRange and Entity.PrimaryPart then
-local Target = Entity.PrimaryPart.Position
-local Dist = (Origin - Target).Magnitude
-if Dist < (MaxRange + 40) then
-InfParams.FilterDescendantsInstances = {LocalPlayer.Character, Entity}
-local Hit = workspace:Raycast(Origin, Target - Origin, InfParams)
-if not Hit then
-task.spawn(function()
-RemotesFolder.DropItem:FireServer(Tool)
-local FireFunc = Firepp or fireproximityprompt
-local StartTime = tick()
-repeat
-task.wait(0.01)
-local Drops = workspace:FindFirstChild("Drops")
-local Drop = Drops and Drops:FindFirstChild("Crucifix")
-local Prompt = Drop and Drop:FindFirstChildOfClass("ProximityPrompt")
-if Prompt and FireFunc then
-FireFunc(Prompt)
-end
-until LocalPlayer.Character:FindFirstChild("Crucifix") or (tick() - StartTime) > 1.2
-end)
-break
-end
-end
-end
 end
 end
 end
