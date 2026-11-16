@@ -1149,7 +1149,7 @@ DestroyBox:AddToggle("AvoidCollisionsEntities", {
 	Text = "Avoid Collisions Entities",
 	Default = false,
 	Risky = true,
-	Tooltip = "Pivot Cơ thể về sau entity né Entity,có thể thất bại",
+	Tooltip = "Pivot ra sau entity,có thể thất bại,Yêu Cầu Ping & FPS trên 30",
 	Callback = function(Value)
 		if AvoidColConn then
 			task.cancel(AvoidColConn)
@@ -1157,66 +1157,55 @@ DestroyBox:AddToggle("AvoidCollisionsEntities", {
 		end
 		if not Value then return end
 		AvoidColConn = task.spawn(function()
-			local oneShot = {
-				RushMoving = true, AmbushMoving = true, BackdoorRush = true,
-				A60 = true, A120 = true, GlitchRush = true, GlitchAmbush = true,
-				BashMoving = true, FrozenAmbush = true,
-			}
 			local AvoidProfiles = {
-	RushMoving   = { range = 100, back = 125 },
-	AmbushMoving = { range = 160, back = 150 },
-	A60          = { range = 150, back = 135 },
-	A120         = { range = 90,  back = 75  },
-	BashMoving   = { range = 235, back = 175 },
-	GlitchRush   = { range = 235, back = 175 },
-	GlitchAmbush = { range = 235, back = 175 },
-	BackdoorRush = { range = 235, back = 175 }, -- Blitz
-	FrozenAmbush = { range = 235, back = 175 },
-}
-
--- trong while:
-for name, conf in pairs(AvoidProfiles) do
-	local m = workspace:FindFirstChild(name)
-	local part = m and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart"))
-	if not part then continue end
-	local d = (part.Position - root.Position).Magnitude
-	if d > conf.range then continue end
-
-	local vel = part.AssemblyLinearVelocity
-	local look = (vel.Magnitude > 5) and vel.Unit or part.CFrame.LookVector
-	local future = part.Position + vel * 0.28 -- predict
-	local behind = future - look * conf.back
-	local side = look:Cross(Vector3.yAxis)
-	if side.Magnitude > 0.1 then
-		behind = behind + side.Unit * 4
-	end
-
-	local ok = false
-	for attempt = 1, 25 do
-		if not (Toggles.AvoidCollisionsEntities and Toggles.AvoidCollisionsEntities.Value) then break end
-		char:PivotTo(CFrame.new(behind, behind + look))
-		task.wait(0.01)
-		local nr = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-		if nr and (nr.Position - behind).Magnitude <= 12 then
-			ok = true
-			break
-		end
-		part = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart") or part
-		vel = part.AssemblyLinearVelocity
-		look = (vel.Magnitude > 5) and vel.Unit or part.CFrame.LookVector
-		future = part.Position + vel * 0.28
-		behind = future - look * conf.back
-	end
-	if not ok and Notify then
-		Notify("Né Va chạm.....Thất bại! (" .. name .. ")", 4)
-	end
-end
-									if Notify then
-										Notify("Né Va chạm.....Thất bại! (" .. name .. ")", 4)
-									end
-									-- thả player (không khóa move)
+				RushMoving   = { range = 100, back = 125 },
+				AmbushMoving = { range = 160, back = 150 },
+				A60          = { range = 150, back = 135 },
+				A120         = { range = 90,  back = 75  },
+				BashMoving   = { range = 235, back = 175 },
+				GlitchRush   = { range = 235, back = 175 },
+				GlitchAmbush = { range = 235, back = 175 },
+				BackdoorRush = { range = 235, back = 175 },
+				FrozenAmbush = { range = 235, back = 175 },
+			}
+			while Toggles.AvoidCollisionsEntities and Toggles.AvoidCollisionsEntities.Value do
+				local char = LocalPlayer.Character
+				local root = char and char:FindFirstChild("HumanoidRootPart")
+				if root and char then
+					for name, conf in pairs(AvoidProfiles) do
+						local m = workspace:FindFirstChild(name)
+						local part = m and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart"))
+						if part then
+							local d = (part.Position - root.Position).Magnitude
+							if d <= conf.range then
+								local vel = part.AssemblyLinearVelocity
+								local look = (vel.Magnitude > 5) and vel.Unit or part.CFrame.LookVector
+								local future = part.Position + vel * 0.28
+								local behind = future - look * conf.back
+								local side = look:Cross(Vector3.yAxis)
+								if side.Magnitude > 0.1 then
+									behind = behind + side.Unit * 4
 								end
-								task.wait(0.4)
+								local ok = false
+								for attempt = 1, 25 do
+									if not (Toggles.AvoidCollisionsEntities and Toggles.AvoidCollisionsEntities.Value) then break end
+									char:PivotTo(CFrame.new(behind, behind + look))
+									task.wait(0.01)
+									local nr = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+									if nr and (nr.Position - behind).Magnitude <= 12 then
+										ok = true
+										break
+									end
+									part = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart") or part
+									vel = part.AssemblyLinearVelocity
+									look = (vel.Magnitude > 5) and vel.Unit or part.CFrame.LookVector
+									future = part.Position + vel * 0.28
+									behind = future - look * conf.back
+								end
+								if not ok and Notify then
+									Notify("Né Va chạm.....Thất bại! (" .. name .. ")", 4)
+								end
+								task.wait(0.35)
 							end
 						end
 					end
