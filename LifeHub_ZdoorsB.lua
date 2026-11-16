@@ -4335,76 +4335,185 @@ end
 end
 end
 })
-ReachBox:AddSlider("PromptReachMult", {
-Text = "Prompt Reach Multiplier",
-Min = 1,
-Max = 3,
-Default = 1.5,
-Rounding = 1,
-Compact = true,
-Callback = function(Value)
-	if Toggles.PromptReach and Toggles.PromptReach.Value then
-		for _, v in pairs(workspace:GetDescendants()) do
-			if v:IsA("ProximityPrompt") then
-				local base = v:GetAttribute("Range_Old") or v:GetAttribute("Range") or v.MaxActivationDistance
-				if not v:GetAttribute("Range_Old") then
-					v:SetAttribute("Range_Old", base)
+local HasteHookConn = nil
+BypassEntityBox:AddToggle("AntiHaste", {
+	Text = "Anti Haste",
+	Default = false,
+	Risky = true,
+	Tooltip = "Xoá Visual Haste + Điều chỉnh Coliison Part Né va Chạm",
+	Callback = function(Value)
+		if HasteHookConn then
+			task.cancel(HasteHookConn)
+			HasteHookConn = nil
+		end
+		if not Value then return end
+		HasteHookConn = task.spawn(function()
+			while Toggles.AntiHaste and Toggles.AntiHaste.Value do
+				local char = LocalPlayer.Character
+				local root = char and char:FindFirstChild("HumanoidRootPart")
+				local coll = char and (char:FindFirstChild("Collision") or char:FindFirstChild("CollisionPart") or char:FindFirstChild("CollisionClone"))
+				if root then
+					-- tìm Haste
+					local haste = workspace:FindFirstChild("Haste") or workspace:FindFirstChild("HasteEntity")
+					if not haste then
+						for _, c in ipairs(workspace:GetChildren()) do
+							if typeof(c.Name) == "string" and string.lower(c.Name):find("haste") then
+								haste = c
+								break
+							end
+						end
+					end
+					if haste then
+						local hp = haste.PrimaryPart or haste:FindFirstChildWhichIsA("BasePart")
+						if hp then
+							local dist = (hp.Position - root.Position).Magnitude
+
+							-- ===== Lớp 1: ≤125 studs =====
+							if dist <= 125 then
+								pcall(function()
+									-- đứng yên entity
+									hp.AssemblyLinearVelocity = Vector3.zero
+									hp.AssemblyAngularVelocity = Vector3.zero
+									local hHum = haste:FindFirstChildOfClass("Humanoid")
+									if hHum then
+										hHum.WalkSpeed = 0
+										hHum.JumpPower = 0
+										pcall(function() hHum.JumpHeight = 0 end)
+										pcall(function()
+											hHum:Move(Vector3.zero, false)
+										end)
+									end
+									-- path / body movers
+									for _, d in ipairs(haste:GetDescendants()) do
+										if d:IsA("BodyVelocity") or d:IsA("BodyPosition") or d:IsA("BodyGyro")
+											or d:IsA("LinearVelocity") or d:IsA("AlignPosition")
+											or d:IsA("VectorForce") or d:IsA("PathfindingModifier") then
+											pcall(function() d:Destroy() end)
+										end
+										if d:IsA("BasePart") then
+											d.AssemblyLinearVelocity = Vector3.zero
+										end
+										-- tắt FX
+										if d:IsA("ParticleEmitter") or d:IsA("Beam") or d:IsA("Trail") then
+											d.Enabled = false
+										end
+									end
+									-- xóa hiệu ứng camera
+									local cam = workspace.CurrentCamera
+									if cam then
+										for _, fx in ipairs(cam:GetChildren()) do
+											local n = string.lower(fx.Name)
+											if n:find("haste") or n:find("chase") or n:find("distort") then
+												pcall(function() fx:Destroy() end)
+											end
+										end
+									end
+								end)
+							end
+
+							-- ===== Lớp 2: ≤50 studs — Collision xuống -49999 =====
+							if dist <= 50 and coll and coll:IsA("BasePart") then
+								pcall(function()
+									local pos = coll.Position
+									coll.Position = Vector3.new(pos.X, -49999, pos.Z)
+									-- nếu có CollisionCrouch
+									local crouch = coll:FindFirstChild("CollisionCrouch")
+									if crouch and crouch:IsA("BasePart") then
+										local cp = crouch.Position
+										crouch.Position = Vector3.new(cp.X, -49999, cp.Z)
+									end
+								end)
+							end
+						end
+					end
 				end
-				v.MaxActivationDistance = base * Value
+				task.wait() -- mỗi frame-ish
+			end
+		end)
+	end,
+})
+task.defer(function()
+	task.wait(0.45)
+	pcall(function()
+		local t = Toggles.AntiHaste
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(255,40,40)">Anti Haste</font>'
+		end
+	end)
+end)
+ReachBox:AddSlider("PromptReachMult", {
+	Text = "Prompt Reach Multiplier",
+	Min = 1,
+	Max = 3,
+	Default = 1.5,
+	Rounding = 1,
+	Compact = true,
+	Callback = function(Value)
+		if Toggles.PromptReach and Toggles.PromptReach.Value then
+			for _, v in pairs(workspace:GetDescendants()) do
+				if v:IsA("ProximityPrompt") then
+					local base = v:GetAttribute("Range_Old") or v:GetAttribute("Range") or v.MaxActivationDistance
+					if not v:GetAttribute("Range_Old") then
+						v:SetAttribute("Range_Old", base)
+					end
+					v.MaxActivationDistance = base * Value
+				end
 			end
 		end
-	end
-end,
+	end,
 })
 ReachBox:AddToggle('PromptReach',{
-Text = "Prompt Reach",
-Default = false,
-Callback = function(Value)
-	local mult = (Options.PromptReachMult and Options.PromptReachMult.Value) or 1.5
-	for _, v in pairs(workspace:GetDescendants()) do
-		if v:IsA("ProximityPrompt") then
-			if not v:GetAttribute("Range_Old") then
-				v:SetAttribute("Range_Old", v.MaxActivationDistance)
+	Text = "Prompt Reach",
+	Default = false,
+	Callback = function(Value)
+		local mult = (Options.PromptReachMult and Options.PromptReachMult.Value) or 1.5
+		for _, v in pairs(workspace:GetDescendants()) do
+			if v:IsA("ProximityPrompt") then
+				if not v:GetAttribute("Range_Old") then
+					v:SetAttribute("Range_Old", v.MaxActivationDistance)
+				end
+				local base = v:GetAttribute("Range_Old")
+				v.MaxActivationDistance = Value and (base * mult) or base
 			end
-			local base = v:GetAttribute("Range_Old")
-			v.MaxActivationDistance = Value and (base * mult) or base
 		end
 	end
-end
 })
 ReachBox:AddToggle('InstantPrompts',{
-Text = "Instant Prompts",
-Default = false,
-Tooltip = "HoldDuration = 0 for all prompts",
-Callback = function(Value)
-	for _, v in pairs(workspace:GetDescendants()) do
-		if v:IsA("ProximityPrompt") then
-			if not v:GetAttribute("Hold_Old") then
-				v:SetAttribute("Hold_Old", v.HoldDuration)
+	Text = "Instant Prompts",
+	Default = false,
+	Tooltip = "HoldDuration = 0 for all prompts",
+	Callback = function(Value)
+		for _, v in pairs(workspace:GetDescendants()) do
+			if v:IsA("ProximityPrompt") then
+				if not v:GetAttribute("Hold_Old") then
+					v:SetAttribute("Hold_Old", v.HoldDuration)
+				end
+				v.HoldDuration = Value and 0 or (v:GetAttribute("Hold_Old") or 0)
 			end
-			v.HoldDuration = Value and 0 or (v:GetAttribute("Hold_Old") or 0)
 		end
 	end
-end
 })
 ReachBox:AddToggle('PromptClip',{
-Text = "Prompt Clip",
-Default = false,
-Callback = function(Value)
-	for _, v in pairs(workspace:GetDescendants()) do
-		if v:IsA("ProximityPrompt") then
-			if not v:GetAttribute("Clip") then
-				v:SetAttribute("Clip", v.RequiresLineOfSight)
+	Text = "Prompt Clip",
+	Default = false,
+	Callback = function(Value)
+		for _, v in pairs(workspace:GetDescendants()) do
+			if v:IsA("ProximityPrompt") then
+				if not v:GetAttribute("Clip") then
+					v:SetAttribute("Clip", v.RequiresLineOfSight)
+				end
+				v.RequiresLineOfSight = Value and false or (v:GetAttribute("Clip") \~= false)
 			end
-			v.RequiresLineOfSight = Value and false or (v:GetAttribute("Clip") ~= false)
 		end
 	end
-end
 })
 ReachBox:AddToggle('DoorReach',{
-Text = "Door Reach",
-Default = false,
-Tooltip = "Mở cửa từ phạm vi cửa",
+	Text = "Door Reach",
+	Default = false,
+	Tooltip = "Mở cửa từ phạm vi cửa",
 })
 PlayerColor = Color3.fromRGB(150, 150, 150)
 ESPBox:AddToggle('Player', {
@@ -4609,35 +4718,40 @@ InfItemsDelay += dt
 PlayerESP += dt
 AutoLibrary += dt
 DoorReach += dt
-if not LocalPlayer:GetAttribute("Alive") then
-if Toggles.InfRevive.Value then
-RemotesFolder.Revive:FireServer()
+local isAlive = LocalPlayer:GetAttribute("Alive")
+if not isAlive then
+	if Toggles.InfRevive and Toggles.InfRevive.Value and RemotesFolder then
+		pcall(function() RemotesFolder.Revive:FireServer() end)
+	end
+	if CollisionClone then CollisionClone = nil end
+	-- KHÔNG return — vẫn chạy phần dưới nếu còn Character
 end
-if CollisionClone then
-CollisionClone = nil
-end
-return
-end
+
 if Camera ~= workspace.CurrentCamera then
-Camera = workspace.CurrentCamera
+	Camera = workspace.CurrentCamera
 end
-if not LocalPlayer.Character:GetAttribute("Climbing") and Toggles.EnableMovementSpeed.Value then
-if LocalPlayer.Character.Humanoid.WalkSpeed ~= Options.MovementSpeed.Value then
-LocalPlayer.Character.Humanoid.WalkSpeed = Options.MovementSpeed.Value
+
+local char = LocalPlayer.Character
+local hum = char and char:FindFirstChildOfClass("Humanoid")
+local root = char and char:FindFirstChild("HumanoidRootPart")
+
+if isAlive ~= false and char and hum then
+	if not char:GetAttribute("Climbing") and Toggles.EnableMovementSpeed and Toggles.EnableMovementSpeed.Value then
+		hum.WalkSpeed = Options.MovementSpeed.Value
+	elseif char:GetAttribute("Climbing") and Toggles.EnableClimbingSpeed and Toggles.EnableClimbingSpeed.Value then
+		hum.WalkSpeed = Options.ClimbingSpeed.Value
+	end
 end
-elseif LocalPlayer.Character:GetAttribute("Climbing") and Toggles.EnableClimbingSpeed.Value then
-if LocalPlayer.Character.Humanoid.WalkSpeed ~= Options.ClimbingSpeed.Value then
-LocalPlayer.Character.Humanoid.WalkSpeed = Options.ClimbingSpeed.Value
+
+if Toggles.ThirdPerson and Toggles.ThirdPerson.Value and Camera then
+	local x = (Options.X and Options.X.Value) or 2
+	local y = (Options.Y and Options.Y.Value) or 0
+	local z = (Options.Z and Options.Z.Value) or 6
+	Camera.CFrame = Camera.CFrame * CFrame.new(x, y, z)
 end
-end
-if Toggles.ThirdPerson.Value then
-Camera.CFrame = Camera.CFrame * CFrame.new(Options.X.Value, Options.Y.Value, Options.Z.Value)
-end
-for _, v in pairs(LocalPlayer.Character:GetChildren()) do
-if v:IsA("BasePart") and (v.Name == "Head" or v.Name == "FakeHead") then
-v.Transparency = Toggles.ThirdPerson.Value and 0 or 1
-v.LocalTransparencyModifier = Toggles.ThirdPerson.Value and 0 or 1
-end
+
+if char then
+for _, v in pairs(char:GetChildren()) do
 if v:IsA("Accessory") then
 local handle = v:FindFirstChild("Handle")
 if handle then
