@@ -4127,16 +4127,16 @@ HotelFloor:AddToggle("AutoHotel", {
 					else
 						-- TP tủ gần ≤100 + mở
 						local closet = LeafGetNearestCloset(100)
-if closet then
-	LeafHideInCloset(closet)
-end
+						if closet then
+							LeafHideInCloset(closet)
+						end
+					end
 				elseif vanishing or not ename then
 					-- entity mất → tiếp tục hotel
 					if hum then
 						hum.WalkSpeed = Options.MovementSpeed and Options.MovementSpeed.Value or 15
 						hum.JumpPower = 50
 					end
-					-- TP cửa kế 
 					if getNextClosedDoor then
 						local door = getNextClosedDoor()
 						if door then
