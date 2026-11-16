@@ -5240,29 +5240,30 @@ if Toggles.UpsideDown and Toggles.UpsideDown.Value then
 		root.CFrame = CFrame.lookAt(pos, pos + look) * CFrame.Angles(math.rad(180), 0, 0)
 	end
 end
-
--- Anti Eyes (ĐỘC LẬP — không nằm trong UpsideDown)
-if Toggles.EyesDamage and Toggles.EyesDamage.Value then
-	local eyes = workspace:FindFirstChild("Eyes") or workspace:FindFirstChild("Lookman")
-	if eyes and LocalPlayer.Character and not LocalPlayer.Character:GetAttribute("Hiding") then
-		pcall(function()
-			if MotorReplication then
-				if RemotesFolder and RemotesFolder.Name ~= "RemotesFolder" then
-					MotorReplication:FireServer(0, -650, 0, false)
-				else
-					MotorReplication:FireServer(-650)
-				end
+do
+	local eyesOn = Toggles.EyesDamage and Toggles.EyesDamage.Value
+	local lookOn = Toggles.LookmanDamage and Toggles.LookmanDamage.Value
+	if (eyesOn or lookOn) and MotorReplication then
+		local hasEyes = workspace:FindFirstChild("Eyes")
+			or workspace:FindFirstChild("Lookman")
+			or workspace:FindFirstChild("EyesRushMode")
+		local hasLook = workspace:FindFirstChild("BackdoorLookman")
+			or workspace:FindFirstChild("Lookman")
+		local need = (eyesOn and hasEyes) or (lookOn and hasLook)
+		if need then
+			local hiding = LocalPlayer.Character and LocalPlayer.Character:GetAttribute("Hiding")
+			if not hiding then
+				pcall(function()
+					local floorVal = Floor and Floor.Value
+					if floorVal == "Fools" or floorVal == "OldHotel" then
+						MotorReplication:FireServer(0, -65, 0, false)
+					elseif RemotesFolder and RemotesFolder.Name ~= "RemotesFolder" then
+						MotorReplication:FireServer(0, -650, 0, false)
+					else
+						MotorReplication:FireServer(-650)
+					end
+				end)
 			end
-		end)
-	end
-end
-
-if Toggles.LookmanDamage and Toggles.LookmanDamage.Value then
-	if workspace:FindFirstChild("BackdoorLookman") then
-		if LocalPlayer.Character and not LocalPlayer.Character:GetAttribute("Hiding") then
-			pcall(function()
-				if MotorReplication then MotorReplication:FireServer(-650) end
-			end)
 		end
 	end
 end
