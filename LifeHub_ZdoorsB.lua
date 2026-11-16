@@ -4505,7 +4505,7 @@ ReachBox:AddToggle('PromptClip',{
 				if not v:GetAttribute("Clip") then
 					v:SetAttribute("Clip", v.RequiresLineOfSight)
 				end
-				v.RequiresLineOfSight = Value and false or (v:GetAttribute("Clip") \~= false)
+				v.RequiresLineOfSight = Value and false or (v:GetAttribute("Clip") ~= false)
 			end
 		end
 	end
