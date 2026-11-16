@@ -1162,36 +1162,55 @@ DestroyBox:AddToggle("AvoidCollisionsEntities", {
 				A60 = true, A120 = true, GlitchRush = true, GlitchAmbush = true,
 				BashMoving = true, FrozenAmbush = true,
 			}
-			while Toggles.AvoidCollisionsEntities and Toggles.AvoidCollisionsEntities.Value do
-				local char = LocalPlayer.Character
-				local root = char and char:FindFirstChild("HumanoidRootPart")
-				if root then
-					for name in pairs(oneShot) do
-						local m = workspace:FindFirstChild(name)
-						local part = m and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart"))
-						if part then
-							local d = (part.Position - root.Position).Magnitude
-							if d <= 185 then
-								local look = part.AssemblyLinearVelocity.Magnitude > 1
-									and part.AssemblyLinearVelocity.Unit
-									or part.CFrame.LookVector
-								local behind = part.Position - look * 95
-								local ok = false
-								for attempt = 1, 15 do
-									if not (Toggles.AvoidCollisionsEntities and Toggles.AvoidCollisionsEntities.Value) then break end
-									char:PivotTo(CFrame.new(behind, behind + look))
-									task.wait(0.01)
-									local nr = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-									if nr and (nr.Position - behind).Magnitude <= 8 then
-										ok = true
-										break
-									end
-									-- cập nhật behind theo entity đang chạy
-									part = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart") or part
-									look = part.AssemblyLinearVelocity.Magnitude > 1 and part.AssemblyLinearVelocity.Unit or part.CFrame.LookVector
-									behind = part.Position - look * 95
-								end
-								if not ok then
+			local AvoidProfiles = {
+	RushMoving   = { range = 100, back = 125 },
+	AmbushMoving = { range = 160, back = 150 },
+	A60          = { range = 150, back = 135 },
+	A120         = { range = 90,  back = 75  },
+	BashMoving   = { range = 235, back = 175 },
+	GlitchRush   = { range = 235, back = 175 },
+	GlitchAmbush = { range = 235, back = 175 },
+	BackdoorRush = { range = 235, back = 175 }, -- Blitz
+	FrozenAmbush = { range = 235, back = 175 },
+}
+
+-- trong while:
+for name, conf in pairs(AvoidProfiles) do
+	local m = workspace:FindFirstChild(name)
+	local part = m and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart"))
+	if not part then continue end
+	local d = (part.Position - root.Position).Magnitude
+	if d > conf.range then continue end
+
+	local vel = part.AssemblyLinearVelocity
+	local look = (vel.Magnitude > 5) and vel.Unit or part.CFrame.LookVector
+	local future = part.Position + vel * 0.28 -- predict
+	local behind = future - look * conf.back
+	local side = look:Cross(Vector3.yAxis)
+	if side.Magnitude > 0.1 then
+		behind = behind + side.Unit * 4
+	end
+
+	local ok = false
+	for attempt = 1, 25 do
+		if not (Toggles.AvoidCollisionsEntities and Toggles.AvoidCollisionsEntities.Value) then break end
+		char:PivotTo(CFrame.new(behind, behind + look))
+		task.wait(0.01)
+		local nr = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+		if nr and (nr.Position - behind).Magnitude <= 12 then
+			ok = true
+			break
+		end
+		part = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart") or part
+		vel = part.AssemblyLinearVelocity
+		look = (vel.Magnitude > 5) and vel.Unit or part.CFrame.LookVector
+		future = part.Position + vel * 0.28
+		behind = future - look * conf.back
+	end
+	if not ok and Notify then
+		Notify("Né Va chạm.....Thất bại! (" .. name .. ")", 4)
+	end
+end
 									if Notify then
 										Notify("Né Va chạm.....Thất bại! (" .. name .. ")", 4)
 									end
@@ -1926,7 +1945,7 @@ end
 PlayerBox:AddToggle('Godmode',{
 	Text = "Position Spoof",
 	Default = false,
-	Tooltip = "Server thấy character dưới đất — tránh Rush-like (Abysall)",
+	Tooltip = "Làm Server thấy character dưới đất Né Va Chạm Entity",
 	Risky = true,
 	Callback = function(Value)
 		local char = LocalPlayer.Character
@@ -1960,7 +1979,6 @@ PlayerBox:AddToggle('Godmode',{
 	Callback = function() end,
 	ChangedCallback = function() end,
 })
--- State Auto Position Spoof (Abysall-style)
 getgenv().LeafAutoSpoofed = false
 getgenv().LeafLastMonsterAround = false
 
@@ -1983,7 +2001,6 @@ local function IsSpoofMonsterAround()
 	end
 	return false
 end
--- Immortal = Position Spoof kiểu DeHub (tách toggle, khóa chéo với Godmode)
 local function LeafApplyImmortal(char, enabled)
 	if not char then return end
 	local humanoid = char:FindFirstChildOfClass("Humanoid")
@@ -2240,7 +2257,7 @@ local OldFogEnd
 LightingBox:AddToggle('NoFog',{
 Text = "No Fog",
 Default = false,
-Tooltip = "No fog",
+Tooltip = "Xoá Sương Mù Game",
 Callback = function(Value)
 if not Value then
 for _, v in pairs(Lighting:GetChildren()) do
@@ -2278,6 +2295,82 @@ for _, v in pairs(workspace.CurrentRooms:GetDescendants()) do
         table.insert(Closets, v)
     end
 	end
+local SuperFpsCache = { effects = {}, parts = {} }
+
+local function LeafApplySuperSmooth(on)
+	local lgt = Lighting
+	for _, eff in ipairs(lgt:GetChildren()) do
+		if eff:IsA("DepthOfFieldEffect") or eff:IsA("SunRaysEffect") or eff:IsA("BloomEffect")
+			or eff:IsA("ColorCorrectionEffect") or eff:IsA("BlurEffect") then
+			if on then
+				if SuperFpsCache.effects[eff] == nil then SuperFpsCache.effects[eff] = eff.Enabled end
+				eff.Enabled = false
+			else
+				if SuperFpsCache.effects[eff] ~= nil then eff.Enabled = SuperFpsCache.effects[eff] end
+			end
+		end
+	end
+	local function opt(p)
+		if not p:IsA("BasePart") then return end
+		if on then
+			if not SuperFpsCache.parts[p] then
+				SuperFpsCache.parts[p] = { Material = p.Material, CastShadow = p.CastShadow, Reflectance = p.Reflectance }
+			end
+			p.Material = Enum.Material.Plastic
+			p.CastShadow = false
+			p.Reflectance = 0
+		else
+			local o = SuperFpsCache.parts[p]
+			if o then
+				p.Material = o.Material
+				p.CastShadow = o.CastShadow
+				p.Reflectance = o.Reflectance
+			end
+		end
+	end
+	if on then
+		local cr = workspace:FindFirstChild("CurrentRooms")
+		if cr then
+			for _, room in ipairs(cr:GetChildren()) do
+				for _, d in ipairs(room:GetDescendants()) do opt(d) end
+			end
+		end
+	else
+		for p, o in pairs(SuperFpsCache.parts) do
+			if p and p.Parent then
+				p.Material = o.Material
+				p.CastShadow = o.CastShadow
+				p.Reflectance = o.Reflectance
+			end
+		end
+		table.clear(SuperFpsCache.parts)
+	end
+end
+
+LightingBox:AddToggle("SuperSmoothGraphics", {
+	Text = "Super Smooth Graphics",
+	Default = false,
+	Tooltip = "Giảm Đồ Hoạ Triệt Để game Super FPS",
+	Callback = function(Value)
+		if Value and Toggles.AntiLag and Toggles.AntiLag.Value then
+			Toggles.AntiLag:SetValue(false)
+		end
+		LeafApplySuperSmooth(Value)
+	end,
+})
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.SuperSmoothGraphics
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.TextSize = (lbl.TextSize or 14) - 1
+			lbl.Text = '<font color="rgb(50,205,50)">Super Smooth Graphics</font>'
+		end
+	end)
+end)
 ESPHooks = {}
 task.spawn(function()
 local DoorColor         = Color3.fromRGB(120, 255, 120)
