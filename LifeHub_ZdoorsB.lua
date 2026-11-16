@@ -5411,6 +5411,44 @@ if HookMeta then
 local Old
 Old = hookmetamethod(game, "__namecall", function(Self, ...)
 if Library.Unloaded then
+if HookMeta then
+local Old
+Old = hookmetamethod(game, "__namecall", function(Self, ...)
+	if Library.Unloaded then
+		return Old(Self, ...)
+	end
+	local Method = getnamecallmethod()
+	local Args = {...}
+
+	if Method == "FireServer" or Method == "InvokeServer" then
+		if Toggles.AutoHeartbeat.Value and Self.Name == "ClutchHeartbeat" then
+			return Old(Self, true)
+		end
+		if Method == "FireServer" and Toggles.FigureHearing.Value and Self.Name == "Crouch" then
+			return Old(Self, true, true)
+		end
+
+		if Method == "FireServer" and Self.Name == "MotorReplication" then
+			local eyesOn = Toggles.EyesDamage and Toggles.EyesDamage.Value
+			local lookOn = Toggles.LookmanDamage and Toggles.LookmanDamage.Value
+			local hasEyes = workspace:FindFirstChild("Eyes")
+				or workspace:FindFirstChild("Lookman")
+				or workspace:FindFirstChild("EyesRushMode")
+			local hasLook = workspace:FindFirstChild("BackdoorLookman")
+				or workspace:FindFirstChild("Lookman")
+			if (eyesOn and hasEyes) or (lookOn and hasLook) then
+				local floorVal = Floor and Floor.Value
+				if floorVal == "Fools" or floorVal == "OldHotel" then
+					return Old(Self, 0, -65, 0, false)
+				else
+					return Old(Self, -650)
+				end
+			end
+		end
+	end
+	return Old(Self, ...)
+end)
+end
 return Old(Self, ...)
 end
 local Method = getnamecallmethod()
