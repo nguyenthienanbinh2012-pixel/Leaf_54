@@ -1158,15 +1158,15 @@ DestroyBox:AddToggle("AvoidCollisionsEntities", {
 		if not Value then return end
 		AvoidColConn = task.spawn(function()
 			local AvoidProfiles = {
-				RushMoving   = { range = 100, back = 125 },
-				AmbushMoving = { range = 160, back = 150 },
-				A60          = { range = 150, back = 135 },
-				A120         = { range = 90,  back = 75  },
-				BashMoving   = { range = 235, back = 175 },
-				GlitchRush   = { range = 235, back = 175 },
-				GlitchAmbush = { range = 235, back = 175 },
-				BackdoorRush = { range = 235, back = 175 },
-				FrozenAmbush = { range = 235, back = 175 },
+				RushMoving   = { range = 200, back = 125 },
+				AmbushMoving = { range = 275, back = 150 },
+				A60          = { range = 256, back = 135 },
+				A120         = { range = 140,  back = 95  },
+				BashMoving   = { range = 300, back = 175 },
+				GlitchRush   = { range = 300, back = 175 },
+				GlitchAmbush = { range = 320, back = 175 },
+				BackdoorRush = { range = 278, back = 175 },
+				FrozenAmbush = { range = 285, back = 175 },
 			}
 			while Toggles.AvoidCollisionsEntities and Toggles.AvoidCollisionsEntities.Value do
 				local char = LocalPlayer.Character
@@ -1189,8 +1189,23 @@ DestroyBox:AddToggle("AvoidCollisionsEntities", {
 								local ok = false
 								for attempt = 1, 25 do
 									if not (Toggles.AvoidCollisionsEntities and Toggles.AvoidCollisionsEntities.Value) then break end
-									char:PivotTo(CFrame.new(behind, behind + look))
-									task.wait(0.01)
+									do
+	local hx, hz = behind.X, behind.Z
+	-- 1) xuống void (tránh đâm entity)
+	char:PivotTo(CFrame.new(root.Position.X, -230, root.Position.Z))
+	-- 2) ra sau, vẫn thấp
+	char:PivotTo(CFrame.new(hx, -230, hz))
+	-- 3) nâng +235
+	char:PivotTo(CFrame.new(hx, -230 + 235, hz))
+	-- 4) triệt lực — đứng im
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	local h = char:FindFirstChildOfClass("Humanoid")
+	if h then
+		h.PlatformStand = false
+	end
+end
+task.wait(0.01)
 									local nr = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
 									if nr and (nr.Position - behind).Magnitude <= 12 then
 										ok = true
