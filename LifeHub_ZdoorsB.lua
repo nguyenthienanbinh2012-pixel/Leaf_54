@@ -1223,6 +1223,7 @@ task.delay(2, function()
 end)
 
 task.wait(0.01)
+end
 									local nr = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
 									if nr and (nr.Position - behind).Magnitude <= 12 then
 										ok = true
