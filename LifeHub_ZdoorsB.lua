@@ -1190,21 +1190,38 @@ DestroyBox:AddToggle("AvoidCollisionsEntities", {
 								for attempt = 1, 25 do
 									if not (Toggles.AvoidCollisionsEntities and Toggles.AvoidCollisionsEntities.Value) then break end
 									do
-	local hx, hz = behind.X, behind.Z
-	-- 1) xuống void (tránh đâm entity)
-	char:PivotTo(CFrame.new(root.Position.X, -230, root.Position.Z))
-	-- 2) ra sau, vẫn thấp
-	char:PivotTo(CFrame.new(hx, -230, hz))
-	-- 3) nâng +235
-	char:PivotTo(CFrame.new(hx, -230 + 235, hz))
-	-- 4) triệt lực — đứng im
-	root.AssemblyLinearVelocity = Vector3.zero
-	root.AssemblyAngularVelocity = Vector3.zero
-	local h = char:FindFirstChildOfClass("Humanoid")
-	if h then
-		h.PlatformStand = false
-	end
+	
+													-- behind đã tính sẵn (future - look * back)
+local hx, hz = behind.X, behind.Z
+local baseY = root.Position.Y
+
+-- 1) TP ra sau entity
+char:PivotTo(CFrame.new(hx, baseY, hz))
+
+-- 2) Anchor rất ngắn rồi thả
+root.Anchored = true
+task.wait(0.001)
+root.Anchored = false
+
+-- 3) Reset lực — đứng im
+root.AssemblyLinearVelocity = Vector3.zero
+root.AssemblyAngularVelocity = Vector3.zero
+local hum = char:FindFirstChildOfClass("Humanoid")
+if hum then
+	hum.PlatformStand = false
+	pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
 end
+
+-- 4) Khôi phục sau 2s (nếu còn bật avoid + còn character)
+task.delay(2, function()
+	local c = LocalPlayer.Character
+	local r = c and c:FindFirstChild("HumanoidRootPart")
+	if not r then return end
+	r.Anchored = false
+	r.AssemblyLinearVelocity = Vector3.zero
+	r.AssemblyAngularVelocity = Vector3.zero
+end)
+
 task.wait(0.01)
 									local nr = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
 									if nr and (nr.Position - behind).Magnitude <= 12 then
@@ -1258,53 +1275,6 @@ local ESPSettings = Tabs.Visuals:AddRightGroupbox('Settings','sliders-horizontal
 local NotifyBox = Tabs.Visuals:AddRightGroupbox('Notifying','bell')
 local BypassEntityBox = Tabs.Bypass:AddLeftGroupbox('Bypass Entities','ghost')
 local BypassBox = Tabs.Bypass:AddRightGroupbox('Bypass','shield-check')
-local function LeafUpdateFloorGroups()
-	local f = Floor and Floor.Value or ""
-	local map = {}
-	if HotelFloor then map[HotelFloor] = (f == "Hotel" or f == "Hotel-" or f == "BeforePlus") end
-	if MinesFloor then map[MinesFloor] = (f == "Mines") end
-	if FoolsFloor then map[FoolsFloor] = (f == "Fools" or f == "Fools26") end
-	if RoomsFloor then map[RoomsFloor] = (f == "Rooms") end
-	if RetroFloor then map[RetroFloor] = (f == "Retro") end
-
-	for box, ok in pairs(map) do
-		pcall(function()
-			local container = box.Container or box.Holder or box.Frame
-				or (box.Object and (box.Object:IsA("GuiObject") and box.Object or box.Object:FindFirstChildWhichIsA("GuiObject", true)))
-			if not container or not container:IsA("GuiObject") then
-				-- fallback: thử Visible vẫn hiện
-				if box.SetVisible then box:SetVisible(true)
-				elseif box.Visible ~= nil then box.Visible = true end
-				return
-			end
-			container.Visible = true
-			container.Active = ok and true or false
-			-- mờ khi sai floor
-			if container:IsA("GuiObject") then
-				container.BackgroundTransparency = ok and (container:GetAttribute("LeafBgT") or 0) or 0.55
-				if not container:GetAttribute("LeafBgT") then
-					container:SetAttribute("LeafBgT", container.BackgroundTransparency)
-				end
-			end
-			-- khóa mọi nút / toggle con
-			for _, d in ipairs(container:GetDescendants()) do
-				if d:IsA("TextButton") or d:IsA("ImageButton") or d:IsA("TextBox") then
-					d.Active = ok
-					d.AutoButtonColor = ok
-					if d:IsA("GuiObject") then
-						d.BackgroundTransparency = ok and (d:GetAttribute("LeafBgT") or d.BackgroundTransparency) or math.min(0.7, (d.BackgroundTransparency or 0) + 0.35)
-					end
-				elseif d:IsA("TextLabel") or d:IsA("TextButton") then
-					if not ok then
-						d.TextTransparency = 0.45
-					else
-						d.TextTransparency = 0
-					end
-				end
-			end
-		end)
-	end
-	end
 RetroFloor:AddToggle('AntiLava',{
 Text = "Anti Lava",
 Default = false,
