@@ -1848,6 +1848,293 @@ end
 end
 end
 })
+local RemoveObstaclesC_Store = {} -- [part] = {CanCollide, Parent?}
+local RemoveObstaclesC_Conn = nil
+
+TargetBox:AddToggle("RemoveObstaclesC", {
+	Text = "Remove Obstacles C",
+	Default = false,
+	Tooltip = "Tạm Thời Xoá Bỏ Part phải ngồi,Ẩn",
+	Callback = function(Value)
+		if RemoveObstaclesC_Conn then
+			task.cancel(RemoveObstaclesC_Conn)
+			RemoveObstaclesC_Conn = nil
+		end
+		if not Value then
+			-- khôi phục
+			for part, data in pairs(RemoveObstaclesC_Store) do
+				pcall(function()
+					if part and part.Parent then
+						part.CanCollide = data.CanCollide
+					end
+				end)
+			end
+			table.clear(RemoveObstaclesC_Store)
+			return
+		end
+		RemoveObstaclesC_Conn = task.spawn(function()
+			while Toggles.RemoveObstaclesC and Toggles.RemoveObstaclesC.Value do
+				local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+				if root then
+					local rooms = workspace:FindFirstChild("CurrentRooms")
+					local function checkPart(p)
+						if not p:IsA("BasePart") then return end
+						if (p.Position - root.Position).Magnitude > 120 then return end
+						-- Thuộc tính / tên gợi ý phải Crouch (C)
+						local n = string.lower(p.Name)
+						local needC = p:GetAttribute("RequiresCrouch")
+							or p:GetAttribute("Crouch")
+							or n:find("crouch")
+							or n:find("crawl")
+							or n:find("duct")
+							or n:find("vent")
+							or n:find("low")
+						-- Hitbox thấp (phải cúi)
+						local low = p.Size.Y > 0.5 and p.Size.Y < 3 and p.Size.X > 2
+						if not needC and not low then return end
+						if RemoveObstaclesC_Store[p] then return end
+						local vol = p.Size.X * p.Size.Y * p.Size.Z
+						RemoveObstaclesC_Store[p] = { CanCollide = p.CanCollide }
+						if vol >= 8 then
+							-- to: tắt va chạm
+							p.CanCollide = false
+						else
+							-- nhỏ: tắt + destroy
+							p.CanCollide = false
+							pcall(function() p:Destroy() end)
+						end
+					end
+					if rooms then
+						for _, d in ipairs(rooms:GetDescendants()) do
+							checkPart(d)
+						end
+					end
+				end
+				task.wait(0.25)
+			end
+		end)
+	end,
+})
+-- Remove Giggle
+local RemoveGiggleConn = nil
+TargetBox:AddToggle("RemoveGiggle", {
+	Text = "Remove Giggle",
+	Default = false,
+	Callback = function(Value)
+		if RemoveGiggleConn then task.cancel(RemoveGiggleConn) RemoveGiggleConn = nil end
+		if not Value then return end
+		local done = {}
+		RemoveGiggleConn = task.spawn(function()
+			while Toggles.RemoveGiggle and Toggles.RemoveGiggle.Value do
+				local roomNum = LocalPlayer:GetAttribute("CurrentRoom")
+				local rooms = workspace:FindFirstChild("CurrentRooms")
+				local room = rooms and rooms:FindFirstChild(tostring(roomNum))
+				local function hit(m)
+					if not m or done[m] then return end
+					done[m] = true
+					pcall(function()
+						for _, p in ipairs(m:GetDescendants()) do
+							if p:IsA("BasePart") then p.Size = Vector3.new(0.1, 0.1, 0.1) end
+						end
+						local part = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+						if part then
+							local cf = CFrame.new(part.Position.X, -99, part.Position.Z)
+							if m.PivotTo then m:PivotTo(cf) else part.CFrame = cf end
+						end
+					end)
+				end
+				if room then
+					for _, o in ipairs(room:GetDescendants()) do
+						if o.Name == "Giggle" or o.Name == "GiggleCeiling" then hit(o) end
+					end
+				end
+				task.wait(0.2)
+			end
+		end)
+	end,
+})
+
+-- Delete Grumble
+local GrumbleCount = 0
+local DeleteGrumbleConn = nil
+TargetBox:AddToggle("DeleteGrumble", {
+	Text = "Delete Grumble",
+	Default = false,
+	Callback = function(Value)
+		if DeleteGrumbleConn then
+			if typeof(DeleteGrumbleConn) == "RBXScriptConnection" then DeleteGrumbleConn:Disconnect()
+			else task.cancel(DeleteGrumbleConn) end
+			DeleteGrumbleConn = nil
+		end
+		if not Value then return end
+		local elevating = {}
+		DeleteGrumbleConn = RunService.Heartbeat:Connect(function()
+			if not (Toggles.DeleteGrumble and Toggles.DeleteGrumble.Value) then return end
+			local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+			if not root then return end
+			for _, m in ipairs(workspace:GetChildren()) do
+				if not (m.Name == "Grumble" or m.Name:find("Grumble")) then continue end
+				if m.Name:find("Queen") then continue end
+				local part = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+				if not part or (part.Position - root.Position).Magnitude > 60 then continue end
+				local hasNet = false
+				pcall(function() if isnetworkowner and isnetworkowner(part) then hasNet = true end end)
+				if not elevating[m] then
+					elevating[m] = { t0 = tick(), baseY = part.Position.Y }
+					pcall(function()
+						for _, p in ipairs(m:GetDescendants()) do
+							if p:IsA("BasePart") then
+								p.CanCollide = false
+								p.Size = Vector3.new(1, 1, 1)
+							end
+						end
+					end)
+				end
+				local info = elevating[m]
+				local y = info.baseY + 6.5
+				pcall(function()
+					part.CFrame = CFrame.new(part.Position.X, y, part.Position.Z)
+				end)
+				if hasNet and (tick() - info.t0) >= 1 then
+					pcall(function()
+						if m.PivotTo then m:PivotTo(CFrame.new(part.Position.X, -1000, part.Position.Z)) end
+					end)
+					task.delay(6, function()
+						local p2 = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+						local r2 = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+						if not p2 or not r2 or (p2.Position - r2.Position).Magnitude > 100 then
+							GrumbleCount += 1
+							if Notify then Notify(string.format("Delete Grumble Success %02d", GrumbleCount), 3) end
+						end
+					end)
+					elevating[m] = nil
+				end
+				-- không net: không dừng, cứ elevate
+			end
+		end)
+	end,
+})
+
+-- Delete Queen Grumble [FE] button đỏ
+TargetBox:AddButton({
+	Text = "Delete Queen Grumble [FE]",
+	DoubleClick = true,
+	Func = function()
+		local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+		if not root then return end
+		local queen = nil
+		for _, m in ipairs(workspace:GetChildren()) do
+			if m.Name:find("Queen") and m.Name:find("Grumble") then queen = m break end
+			if m.Name == "QueenGrumble" or m.Name == "GrumbleQueen" then queen = m break end
+		end
+		if not queen then
+			if Notify then Notify("Không phát hiện thấy Queen Grumble!", 3) end
+			return
+		end
+		local part = queen.PrimaryPart or queen:FindFirstChildWhichIsA("BasePart")
+		if not part or (part.Position - root.Position).Magnitude > 150 then
+			if Notify then Notify("Không phát hiện thấy Queen Grumble (≤150)!", 3) end
+			return
+		end
+		pcall(function()
+			for _, p in ipairs(queen:GetDescendants()) do
+				if p:IsA("BasePart") then p.CanCollide = false end
+			end
+			if queen.ScaleTo then queen:ScaleTo(0.15) end -- thu nhỏ model
+			for _, p in ipairs(queen:GetDescendants()) do
+				if p:IsA("BasePart") then p.Size = Vector3.new(5, 5, 5) end
+			end
+		end)
+		local hasNet = false
+		pcall(function() if isnetworkowner and isnetworkowner(part) then hasNet = true end end)
+		if hasNet then
+			pcall(function()
+				if queen.PivotTo then queen:PivotTo(CFrame.new(part.Position.X, -29999, part.Position.Z)) end
+			end)
+		else
+			pcall(function()
+				if sethiddenproperty then
+					sethiddenproperty(LocalPlayer, "SimulationRadius", 1000)
+					sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 1000)
+				end
+				if setsimulationradius then setsimulationradius(1000) end
+			end)
+			local y = -20000 - math.random(0, 10000)
+			pcall(function()
+				if queen.PivotTo then queen:PivotTo(CFrame.new(part.Position.X, y, part.Position.Z)) end
+			end)
+		end
+		local t0 = tick()
+		local conn
+		conn = RunService.Heartbeat:Connect(function()
+			if tick() - t0 > 3.5 then conn:Disconnect() return end
+			local p2 = queen.PrimaryPart or queen:FindFirstChildWhichIsA("BasePart")
+			local r2 = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+			if p2 and r2 and (p2.Position - r2.Position).Magnitude <= 100 then
+				local yy = -20000 - math.random(0, 10000)
+				pcall(function()
+					if queen.PivotTo then queen:PivotTo(CFrame.new(p2.Position.X, yy, p2.Position.Z)) end
+				end)
+			end
+			if p2 and p2.Position.Y < -500 then
+				conn:Disconnect()
+				if Notify then Notify("Delete Queen Grumble Success!!!", 4) end
+			end
+		end)
+	end,
+})
+task.defer(function()
+	task.wait(0.45)
+	pcall(function()
+		for _, b in pairs(Buttons or {}) do
+			if typeof(b) == "table" and b.Text and tostring(b.Text):find("Queen Grumble") then
+				local lbl = b.TextLabel or (b.Object and b.Object:FindFirstChildWhichIsA("TextLabel", true))
+				if lbl then
+					lbl.RichText = true
+					lbl.Text = '<font color="rgb(255,40,40)">Delete Queen Grumble [FE]</font>'
+				end
+			end
+		end
+	end)
+end)
+
+-- Remove Kill Brick [FE]
+local RemoveKBConn = nil
+TargetBox:AddToggle("RemoveKillBrickFE", {
+	Text = "Remove Kill Brick [FE]",
+	Default = false,
+	Tooltip = "Giúp loại bỏ Trigger Kill Bricks — có thể không hoạt động!",
+	Callback = function(Value)
+		if RemoveKBConn then task.cancel(RemoveKBConn) RemoveKBConn = nil end
+		if not Value then return end
+		RemoveKBConn = task.spawn(function()
+			while Toggles.RemoveKillBrickFE and Toggles.RemoveKillBrickFE.Value do
+				local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+				if root then
+					for _, inst in ipairs(workspace:GetDescendants()) do
+						if inst.Name == "KillBrick" or inst.Name == "Kill" or inst.Name:find("KillBrick") then
+							local p = inst:IsA("BasePart") and inst or inst:FindFirstChildWhichIsA("BasePart")
+							if p and (p.Position - root.Position).Magnitude <= 350 then
+								pcall(function()
+									p.CanCollide = false
+									p.CanTouch = false
+									p.Size = Vector3.new(1, 1, 1)
+									p.CFrame = CFrame.new(p.Position.X, -1000, p.Position.Z)
+								end)
+								task.delay(5, function()
+									if p and p.Position.Y < -100 then
+										if Notify then Notify("Loại Bỏ Kill Brick Thành Công!", 3) end
+									end
+								end)
+							end
+						end
+					end
+				end
+				task.wait(0.4)
+			end
+		end)
+	end,
+})
 FoolsFloor:AddToggle('AntiJeff',{
 Text = "Anti Jeff",
 Default = false,
