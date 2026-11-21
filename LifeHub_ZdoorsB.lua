@@ -116,8 +116,8 @@ ShowCustomCursor = true,
 Footer = "obsidian-ui",
 CornerRadius = 12,
 })
-Window.MainFrame.Size = UDim2.fromOffset(710, 310)
-Window:SetSidebarWidth(160)
+Window.MainFrame.Size = UDim2.fromOffset(690, 300)
+Window:SetSidebarWidth(165)
 if Library.KeybindFrame then
 if getgenv().LeafHub_KeybindPos then
 local p = getgenv().LeafHub_KeybindPos
@@ -716,7 +716,7 @@ local Tabs = {
 Main = Window:AddTab('Player', "user"),
 Bypass = Window:AddTab('Bypass', "lock-keyhole"),
 Visuals = Window:AddTab('Visuals',"monitor"),
-Floor = Window:AddTab('Floor', "building"),
+Floor = Window:AddTab({ Name = "Floor", Icon = "building", SubTabs = true }),
 Other = Window:AddTab('Other', "drama"),
 Settings = Window:AddTab('Settings',"settings"),
 }
@@ -1262,11 +1262,20 @@ task.defer(function()
 end)
 local PlayerBox = Tabs.Main:AddLeftGroupbox('Body','person-standing')
 local GameBox = Tabs.Main:AddLeftGroupbox('Game Management','gamepad-2')
-local HotelFloor = Tabs.Floor:AddLeftGroupbox('Hotel','hotel')
-local MinesFloor = Tabs.Floor:AddRightGroupbox('Mines','pickaxe')
-local FoolsFloor = Tabs.Floor:AddRightGroupbox('Fools','ghost')
-local RoomsFloor = Tabs.Floor:AddLeftGroupbox('Rooms','door-open')
-local RetroFloor = Tabs.Floor:AddLeftGroupbox('Retro','clock')
+local SubHotel   = Tabs.Floor:AddSubTab("Hotel", "hotel")
+local SubMines   = Tabs.Floor:AddSubTab("Mines", "pickaxe")
+local SubFools   = Tabs.Floor:AddSubTab("Fools", "ghost")
+local SubRooms   = Tabs.Floor:AddSubTab("Rooms", "door-open")
+local SubRetro   = Tabs.Floor:AddSubTab("Retro", "clock")
+local SubExploit = Tabs.Floor:AddSubTab("Exploit", "biohazard") -- khí độc
+
+local HotelFloor = SubHotel:AddLeftGroupbox("Hotel", "hotel")
+local MinesFloor = SubMines:AddRightGroupbox("Mines", "pickaxe")
+local FoolsFloor = SubFools:AddRightGroupbox("Fools", "ghost")
+local RoomsFloor = SubRooms:AddLeftGroupbox("Rooms", "door-open")
+local RetroFloor = SubRetro:AddLeftGroupbox("Retro", "clock")
+
+local TargetBox = SubExploit:AddLeftGroupbox("Target", "crosshair")
 local AutoBox = Tabs.Main:AddRightGroupbox('Auto','bot')
 local ReachBox = Tabs.Main:AddRightGroupbox('Reach','maximize')
 local CameraBox = Tabs.Visuals:AddLeftGroupbox('Camera','camera')
