@@ -1260,6 +1260,64 @@ task.defer(function()
 		end
 	end)
 end)
+local OtherMainBox = Tabs.Other:AddRightGroupbox("Other-Main", "bomb")
+
+OtherMainBox:AddToggle("DisableTimothyDamage", {
+	Text = "Disable Hit Damage Of Timothy",
+	Default = false,
+	Risky = true,
+	Tooltip = "Chặn jumpscare/sound + hook damage Timothy",
+	Callback = function(Value)
+		local folders = {
+			ReplicatedStorage:FindFirstChild("ClientModules"),
+			ReplicatedStorage:FindFirstChild("ModulesClient"),
+		}
+		for _, folder in ipairs(folders) do
+			if folder then
+				local sp = folder:FindFirstChild("SpiderJumpscare", true)
+					or folder:FindFirstChild("_SpiderJumpscare", true)
+				if sp then
+					sp.Name = Value and "_SpiderJumpscare" or "SpiderJumpscare"
+				end
+			end
+		end
+	end,
+})
+
+do
+	local hooked = false
+	task.defer(function()
+		if hooked or not hookmetamethod then return end
+		hooked = true
+		local oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+			local method = getnamecallmethod()
+			if Toggles.DisableTimothyDamage and Toggles.DisableTimothyDamage.Value then
+				if method == "FireServer" or method == "InvokeServer" then
+					local ln = string.lower(tostring(self.Name or ""))
+					if ln:find("timothy") or ln:find("spider") then
+						return
+					end
+				end
+			end
+			return oldNamecall(self, ...)
+		end))
+	end)
+end
+
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.DisableTimothyDamage
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.TextSize = math.max(10, (lbl.TextSize or 14) - 1)
+			lbl.Text = '<font color="rgb(255,40,40)">Disable Hit Damage Of Timothy</font>'
+		end
+	end)
+end)
+
 local PlayerBox = Tabs.Main:AddLeftGroupbox('Body','person-standing')
 local GameBox = Tabs.Main:AddLeftGroupbox('Game Management','gamepad-2')
 local SubFloors = Tabs.Floor:AddSubTab("Floors", "building")
@@ -2323,7 +2381,7 @@ BypassBox:AddButton({
 	Func = function()
 		local char = LocalPlayer.Character
 		if not char then return end
-		char:PivotTo(CFrame.new(9300, 50, 0)) -- +930 X, Y 50 (đổi Z nếu cần)
+		char:PivotTo(CFrame.new(93535509864777744550000000000, 50, 0))
 	end,
 })
 
@@ -4791,24 +4849,6 @@ task.defer(function()
 		end
 	end)
 end)
-BypassEntityBox:AddToggle("LowerBodyFigure", {
-	Text = "Lower body avoid Figure",
-	Default = false,
-	Risky = true,
-	Tooltip = "Hạ Nhân vật khi Figure Ở gần (≤15 studs)",
-})
-task.defer(function()
-	task.wait(0.4)
-	pcall(function()
-		local t = Toggles.LowerBodyFigure
-		if not t then return end
-		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
-		if lbl then
-			lbl.RichText = true
-			lbl.TextSize = 12
-			lbl.Text = '<font color="rgb(255,40,40)">Lower body avoid Figure</font>'
-		end
-	end)
 -- Virtual collision Figure (3 cơ chế ghép nguyên bản)
 BypassEntityBox:AddToggle("VirtualCollisionFigure", {
 	Text = "Virtual collision Figure",
@@ -4848,10 +4888,10 @@ BypassEntityBox:AddToggle("VirtualCollisionFigure", {
 		if Value then
 			-- ===== ACTIVATE: 3 đoạn nguyên văn =====
 
-			-- [ĐOẠN 1] Abysall — nâng Collision +200 (1 lần lúc bật; giữ mỗi frame ở Bước 2)
+			-- [ĐOẠN 1] — nâng Collision +200 (1 lần lúc bật
 			Collision.Position = RootPart.Position + Vector3.new(0, 200, 0)
 
-			-- [ĐOẠN 2] mspaint Floor Fools — GIỮ BUG `or` (luôn return sớm)
+			-- [ĐOẠN 2] Floor Fools — GIỮ BUG `or` (luôn return sớm)
 			if figure then
 				if Script.LatestRoom.Value ~= 50 or Script.LatestRoom.Value ~= 100 then
 					-- return sớm theo bug gốc — không chạy for
@@ -4952,204 +4992,132 @@ end
 end
 end
 })
--- ===== Auto Hotel (Abysall-style + hide theo entity) =====
-local AutoHotelConnection = nil
-local EntityHideDist = {
-	RushMoving = 100,
-	AmbushMoving = 140,
-	A60 = 130,
-	A120 = 90,
-	GlitchRush = 130,
-	GlitchAmbush = 160,
-	BackdoorRush = 120, -- Blitz
+-- ===== Auto Hotel (Abysall-style) =====
+local AutoHotelConnection, AutoHotelSeekConnection = nil, nil
+local AutoHotelEntityNames = {
+	RushMoving = true, AmbushMoving = true, A60 = true, A120 = true,
+	GlitchRush = true, GlitchAmbush = true, BackdoorRush = true,
+	BashMoving = true, Scribbles = true,
 }
-local function LeafGetNearestCloset(maxDist)
-	maxDist = maxDist or 100
-	local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-	if not root then return nil end
-	local best, bestD = nil, maxDist
+local AutoHotelProcessedRooms = {}
+
+local function AutoHotelIsEntityPresent()
+	for _, c in ipairs(workspace:GetChildren()) do
+		if AutoHotelEntityNames[c.Name] then return true end
+	end
+	return false
+end
+
+local function AutoHotelWaitForEntities(sec)
+	task.wait(sec or 3)
+	while AutoHotelIsEntityPresent() and Toggles.AutoHotel and Toggles.AutoHotel.Value do
+		task.wait(0.15)
+	end
+end
+
+local function AutoHotelGetNextDoor()
+	local gd = ReplicatedStorage:FindFirstChild("GameData")
+	local lr = gd and gd:FindFirstChild("LatestRoom")
 	local rooms = workspace:FindFirstChild("CurrentRooms")
-	if not rooms then return nil end
-	for _, inst in ipairs(rooms:GetDescendants()) do
-		local n = inst.Name
-		if n == "Wardrobe" or n == "Backdoor_Wardrobe" or n == "Toolshed" or n == "RetroWardrobe"
-			or n == "Rooms_Locker" or n == "Locker_Large" or n == "Bed" then
-			local part = inst.PrimaryPart or inst:FindFirstChild("Base") or inst:FindFirstChildWhichIsA("BasePart")
-			if part then
-				local d = (part.Position - root.Position).Magnitude
-				if d < bestD then bestD, best = d, inst end
+	if not lr or not rooms then return nil end
+	local startN = tonumber(lr.Value) or 0
+	local bestDoor, bestN = nil, math.huge
+	for _, room in ipairs(rooms:GetChildren()) do
+		local n = tonumber(room.Name)
+		if n and n >= startN and n < bestN and n \~= 100 then
+			local door = room:FindFirstChild("Door")
+			if door and not door:GetAttribute("Opened") then
+				bestN, bestDoor = n, door
 			end
 		end
 	end
-	return best
+	return bestDoor, bestN
 end
-
-local function LeafHideInCloset(closet)
-	if not closet then return false end
-	local char = LocalPlayer.Character
-	if not char then return false end
-	local part = closet.PrimaryPart or closet:FindFirstChild("Base") or closet:FindFirstChildWhichIsA("BasePart")
-	if not part then return false end
-	-- đứng sát tủ
-	char:PivotTo(part.CFrame * CFrame.new(0, 1.2, 0))
-	task.wait(0.08)
-	-- ưu tiên HidePrompt (Abysall)
-	local hide = closet:FindFirstChild("HidePrompt", true)
-	local fire = Firepp or fireproximityprompt
-	if hide and fire then
-		pcall(function()
-			hide.MaxActivationDistance = math.max(hide.MaxActivationDistance, 15)
-			hide.RequiresLineOfSight = false
-			fire(hide)
-			pcall(fire, hide, true)
-		end)
-	else
-		local pr = closet:FindFirstChildWhichIsA("ProximityPrompt", true)
-		if pr and fire then pcall(fire, pr) end
-	end
-	-- ép trạng thái ẩn nếu game set attribute
-	task.delay(0.15, function()
-		pcall(function()
-			if char:GetAttribute("Hiding") ~= true then
-				-- fire lại 1 lần
-				if hide and fire then fire(hide) end
-			end
-		end)
-	end)
-	return true
-	end
 
 HotelFloor:AddToggle("AutoHotel", {
 	Text = "Auto Hotel",
 	Default = false,
 	Risky = true,
-	Tooltip = "Tự Hoàn Thành Màn Khách Sạn Chuyên Nghiệp",
+	Tooltip = "Risk!Tự hoàn thành khách sạn,có thể lỗi!!",
 	Callback = function(Value)
-		if AutoHotelConnection then
-			task.cancel(AutoHotelConnection)
-			AutoHotelConnection = nil
-		end
+		if AutoHotelConnection then task.cancel(AutoHotelConnection) AutoHotelConnection = nil end
+		if AutoHotelSeekConnection then task.cancel(AutoHotelSeekConnection) AutoHotelSeekConnection = nil end
+		table.clear(AutoHotelProcessedRooms)
 		if not Value then return end
+
 		AutoHotelConnection = task.spawn(function()
-			local lastVel = {}
-			local wasMoving = {}
 			while Toggles.AutoHotel and Toggles.AutoHotel.Value do
 				local char = LocalPlayer.Character
 				local root = char and char:FindFirstChild("HumanoidRootPart")
-				local hum = char and char:FindFirstChildOfClass("Humanoid")
 				if not root then task.wait(0.2) continue end
-
-				local ename, emodel, edist = LeafEntityThreat()
-				local need = ename and EntityHideDist[ename] or nil
-				local spoofOn = (Toggles.Godmode and Toggles.Godmode.Value)
-					or (Toggles.AutoPositionSpoof and Toggles.AutoPositionSpoof.Value)
-
-				-- Phát hiện sắp biến mất (đứng khựng / chìm)
-				local vanishing = false
-				if emodel and emodel.PrimaryPart then
-					local p = emodel.PrimaryPart
-					local id = emodel:GetDebugId()
-					local speed = p.AssemblyLinearVelocity.Magnitude
-					local prev = lastVel[id] or speed
-					lastVel[id] = speed
-					if wasMoving[id] and speed < 2 then
-						-- Ambush-like: khựng + Y tăng
-						if p.Position.Y > (prev and 0 or 0) and p.Position.Y > root.Position.Y + 5 then
-							vanishing = true
-						end
-						-- Rush-like: khựng + chìm
-						if p.Position.Y < root.Position.Y - 8 then
-							vanishing = true
-						end
-					end
-					if speed > 8 then wasMoving[id] = true end
+				if AutoHotelIsEntityPresent() then
+					AutoHotelWaitForEntities(2)
+					continue
 				end
-
-				if ename and edist and need and edist <= need then
-					-- GlitchAmbush / BackdoorRush / A60: ra-vào tủ khi >100
-					local special = (ename == "GlitchAmbush" or ename == "BackdoorRush" or ename == "A60")
-					if special and edist > 100 and LocalPlayer.Character:GetAttribute("Hiding") then
-						-- thoát tủ chờ quay lại
-						pcall(function()
-							local prompt = nil -- exit handled by game often
-						end)
-					end
-
-					if spoofOn then
-						-- BỎ QUA trốn; gần 120 studs → ép đứng im
-						if edist <= 120 and hum then
-							hum.WalkSpeed = 0
-							hum.JumpPower = 0
-							root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
-							-- đang rơi → tăng fall
-							if root.AssemblyLinearVelocity.Y < -1 then
-								root.AssemblyLinearVelocity = Vector3.new(0, -50, 0)
-							end
-							-- không cho cao hơn 3 studs so ground ray
-							local rp = RaycastParams.new()
-							rp.FilterDescendantsInstances = {char}
-							local hit = workspace:Raycast(root.Position, Vector3.new(0, -50, 0), rp)
-							if hit and (root.Position.Y - hit.Position.Y) > 3 then
-								root.CFrame = CFrame.new(root.Position.X, hit.Position.Y + 2.5, root.Position.Z)
-									* (root.CFrame - root.CFrame.Position)
-							end
-						end
-					else
-						-- TP tủ gần ≤100 + mở
-						local closet = LeafGetNearestCloset(100)
-						if closet then
-							LeafHideInCloset(closet)
-						end
-					end
-				elseif vanishing or not ename then
-					-- entity mất → tiếp tục hotel
-					if hum then
-						hum.WalkSpeed = Options.MovementSpeed and Options.MovementSpeed.Value or 15
-						hum.JumpPower = 50
-					end
-					if getNextClosedDoor then
-						local door = getNextClosedDoor()
-						if door then
-							char:PivotTo(door:GetPivot() * CFrame.new(0, -1, 0))
-							if door:FindFirstChild("ClientOpen") then
-								pcall(function() door.ClientOpen:FireServer() end)
+				local rooms = workspace:FindFirstChild("CurrentRooms")
+				local roomNum = tonumber(LocalPlayer:GetAttribute("CurrentRoom")) or 0
+				local room = rooms and rooms:FindFirstChild(tostring(roomNum))
+				if room and char then
+					local door = room:FindFirstChild("Door")
+					if door and door:FindFirstChild("Lock") then
+						local hasKey = LocalPlayer.Backpack:FindFirstChild("Key") or char:FindFirstChild("Key")
+						if not hasKey then
+							for _, d in ipairs(room:GetDescendants()) do
+								if d.Name == "KeyObtain" or (d.Name == "Key" and d:IsA("Model")) then
+									char:PivotTo(d:GetPivot() * CFrame.new(0, 1, 0))
+									task.wait(0.12)
+									local fire = Firepp or fireproximityprompt
+									for _, pr in ipairs(d:GetDescendants()) do
+										if pr:IsA("ProximityPrompt") and fire then pcall(fire, pr) end
+									end
+									break
+								end
 							end
 						end
 					end
 				end
-				task.wait(0.12)
+				local door, num = AutoHotelGetNextDoor()
+				if door and num and not AutoHotelProcessedRooms[num] then
+					local dpart = door:FindFirstChild("Door") or door:FindFirstChildWhichIsA("BasePart")
+					if dpart then
+						char:PivotTo(dpart.CFrame * CFrame.new(0, 0, 2))
+						task.wait(0.15)
+						local fire = Firepp or fireproximityprompt
+						for _, pr in ipairs(door:GetDescendants()) do
+							if pr:IsA("ProximityPrompt") and fire then pcall(fire, pr) end
+						end
+						if door:FindFirstChild("ClientOpen") then
+							pcall(function() door.ClientOpen:FireServer() end)
+						end
+						AutoHotelProcessedRooms[num] = true
+					end
+				end
+				task.wait(0.2)
+			end
+		end)
+
+		AutoHotelSeekConnection = task.spawn(function()
+			local lastTrig = nil
+			while Toggles.AutoHotel and Toggles.AutoHotel.Value do
+				local rooms = workspace:FindFirstChild("CurrentRooms")
+				if rooms then
+					for _, Room in ipairs(rooms:GetChildren()) do
+						local Num = tonumber(Room.Name)
+						if Num and Num ~= lastTrig then
+							local Trigger = Room:FindFirstChild("TriggerEventCollision")
+								or Room:FindFirstChild("TriggerEventCollision", true)
+							if Trigger then
+								lastTrig = Num
+								AutoHotelWaitForEntities(8)
+							end
+						end
+					end
+				end
+				task.wait(0.2)
 			end
 		end)
 	end,
 })
-do
-	local rooms = workspace:FindFirstChild("CurrentRooms")
-	local roomNum = tonumber(LocalPlayer:GetAttribute("CurrentRoom")) or 0
-	local room = rooms and rooms:FindFirstChild(tostring(roomNum))
-	if room then
-		local door = room:FindFirstChild("Door")
-		if door and door:FindFirstChild("Lock") then
-			local hasKey = LocalPlayer.Backpack:FindFirstChild("Key")
-				or (char and char:FindFirstChild("Key"))
-			if not hasKey then
-				for _, d in ipairs(room:GetDescendants()) do
-					if d.Name == "KeyObtain" or (d.Name == "Key" and d:IsA("Model")) then
-						char:PivotTo(d:GetPivot() * CFrame.new(0, 1, 0))
-						task.wait(0.1)
-						for _, pr in ipairs(d:GetDescendants()) do
-							if pr:IsA("ProximityPrompt") then
-								local f = Firepp or fireproximityprompt
-								if f then pcall(f, pr) end
-							end
-						end
-						task.wait(0.15)
-						break
-					end
-				end
-			end
-		end
-	end
-end
 HotelFloor:AddToggle("DeleteSeekHotelFE", {
 	Text = "Delete Seek Hotel [FE]",
 	Default = false,
@@ -5228,31 +5196,344 @@ task.defer(function()
 		end
 	end)
 end)
-HotelFloor:AddToggle("AutoHotelIgnoreEntity", {
-	Text = "Ignore Entity",
+-- ===== Auto Complete Library (room 50) =====
+local AutoLibConn = nil
+HotelFloor:AddToggle("AutoCompleteLibrary", {
+	Text = "Auto Complete Library",
 	Default = false,
-	Tooltip = "Không trốn; ưu tiên Immortal; entity ≤80 studs → đứng im",
+	Tooltip = "Giúp tự hoàn thành màn giải Puzzle 50 Hotel",
+	Callback = function(Value)
+		if AutoLibConn then task.cancel(AutoLibConn) AutoLibConn = nil end
+		if not Value then return end
+		AutoLibConn = task.spawn(function()
+			local ok, err = pcall(function()
+				local function toggleOn()
+					return Toggles.AutoCompleteLibrary and Toggles.AutoCompleteLibrary.Value
+				end
+
+				-- chờ vào room 50
+				while toggleOn() and tonumber(LocalPlayer:GetAttribute("CurrentRoom")) \~= 50 do
+					task.wait(0.3)
+				end
+				if not toggleOn() then return end
+
+				local rooms = workspace:FindFirstChild("CurrentRooms")
+				if not rooms then
+					if Notify then Notify("Library: không có CurrentRooms", 3) end
+					return
+				end
+				local room50 = rooms:WaitForChild("50", 15)
+				if not room50 then
+					if Notify then Notify("Library: room 50 chưa load", 3) end
+					return
+				end
+
+				local books = {}
+				local function collect()
+					for _, d in ipairs(room50:GetDescendants()) do
+						if d.Name == "LiveHintBook" and not table.find(books, d) then
+							table.insert(books, d)
+						end
+					end
+				end
+
+				local function hasPaper()
+					local c = LocalPlayer.Character
+					return (c and c:FindFirstChild("LibraryHintPaper", true))
+						or LocalPlayer.Backpack:FindFirstChild("LibraryHintPaper", true)
+				end
+
+				local fire = Firepp or fireproximityprompt
+				local t0 = tick()
+				while toggleOn() and not hasPaper() and (tick() - t0) < 60 do
+					collect()
+					for _, book in ipairs(books) do
+						if not toggleOn() then return end
+						if not book.Parent then continue end
+						local part = book.PrimaryPart or book:FindFirstChildWhichIsA("BasePart")
+						local char = LocalPlayer.Character
+						if part and char then
+							char:PivotTo(part.CFrame * CFrame.new(0, 2, 0))
+							task.wait(0.15)
+							for _, pr in ipairs(book:GetDescendants()) do
+								if pr:IsA("ProximityPrompt") and fire then
+									pcall(fire, pr)
+								end
+							end
+						end
+						task.wait(0.15)
+					end
+					-- paper / pad trong room
+					for _, d in ipairs(room50:GetDescendants()) do
+						if d.Name == "LibraryHintPaper" or d.Name == "HintPaper" then
+							local pr = d:FindFirstChildWhichIsA("ProximityPrompt", true)
+							if pr and fire then pcall(fire, pr) end
+						end
+					end
+					task.wait(0.3)
+				end
+
+				if hasPaper() then
+					if Notify then Notify("Auto Complete Library: hoàn thành!", 4) end
+				else
+					if Notify then Notify("Auto Complete Library: hết thời gian / chưa có paper", 4) end
+				end
+			end)
+			if not ok then
+				warn("[AutoLibrary]", err)
+				if Notify then Notify("Library lỗi: " .. tostring(err), 5) end
+			end
+		end)
+	end,
 })
 
-HotelFloor:AddToggle("LootItemOnTheWay", {
-	Text = "Loot Item On The Way",
+-- ===== Auto Complete Electrical (room 100) =====
+local AutoElecConn = nil
+HotelFloor:AddToggle("AutoCompleteElectrical", {
+	Text = "Auto Complete Electrical Box",
 	Default = false,
-	Tooltip = "Ưu tiên Key → Item → Gold trên đường hotel",
-})
-task.defer(function()
-	task.wait(0.4)
-	pcall(function()
-		local t = Toggles.LootItemOnTheWay
-		if not t then return end
-		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
-		if lbl then lbl.TextSize = (lbl.TextSize or 14) - 1 end
-	end)
-end)
+	Risky = true,
+	Tooltip = "Risk! Tự hoàn thành puzzle cửa 100 Hotel — có thể lỗi!",
+	Callback = function(Value)
+		if AutoElecConn then task.cancel(AutoElecConn) AutoElecConn = nil end
+		if not Value then return end
+		AutoElecConn = task.spawn(function()
+			local ok, err = pcall(function()
+				local function toggleOn()
+					return Toggles.AutoCompleteElectrical and Toggles.AutoCompleteElectrical.Value
+				end
+				local function getRoot()
+					local c = LocalPlayer.Character
+					local h = c and c:FindFirstChildOfClass("Humanoid")
+					if c and h and h.Health > 0 then
+						return c:FindFirstChild("HumanoidRootPart"), c
+					end
+					return nil, nil
+				end
 
-HotelFloor:AddDropdown("LootPickMode", {
-	Text = "Loot Pick",
-	Values = { "All", "Item", "Gold" },
-	Default = "All",
+				local roomNum = tonumber(LocalPlayer:GetAttribute("CurrentRoom"))
+				if roomNum \~= 100 then
+					if Notify then Notify("Không hỗ trợ — không phải cửa 100!", 3) end
+					return
+				end
+
+				local rooms = workspace:FindFirstChild("CurrentRooms")
+				if not rooms then return end
+				local room = rooms:WaitForChild("100", 10)
+				if not room then
+					if Notify then Notify("Room 100 chưa load", 3) end
+					return
+				end
+
+				local fire = Firepp or fireproximityprompt
+				local fuseErr = {}
+
+				local function nearestPrompt(filterFn)
+					local root = getRoot()
+					if not root then return nil, 1e9 end
+					local best, bd = nil, 1e9
+					for _, pr in ipairs(room:GetDescendants()) do
+						if pr:IsA("ProximityPrompt") and not fuseErr[pr] and (not filterFn or filterFn(pr)) then
+							local parent = pr.Parent
+							if not parent then continue end
+							local ad = parent:IsA("BasePart") and parent or parent:FindFirstChildWhichIsA("BasePart")
+							if ad then
+								local d = (ad.Position - root.Position).Magnitude
+								if d < bd then best, bd = pr, d end
+							end
+						end
+					end
+					return best, bd
+				end
+
+				-- Fuse / box
+				for _ = 1, 12 do
+					if not toggleOn() then return end
+					local root, char = getRoot()
+					if not root then return end
+
+					local pr, dist = nearestPrompt(function(p)
+						local n = string.lower(p.Name .. (p.Parent and p.Parent.Name or ""))
+						return n:find("fuse") or n:find("electrical") or n:find("box") or n:find("switch")
+					end)
+					if not pr then break end
+
+					local parent = pr.Parent
+					if not parent then
+						fuseErr[pr] = true
+						continue
+					end
+					local ad = parent:IsA("BasePart") and parent or parent:FindFirstChildWhichIsA("BasePart")
+					if not ad then
+						fuseErr[pr] = true
+						continue
+					end
+
+					if dist > 50 then
+						fuseErr[pr] = true
+					else
+						local tries = 0
+						while pr.Parent and tries < 25 do
+							root, char = getRoot()
+							if not root or not char then return end
+							char:PivotTo(ad.CFrame * CFrame.new(0, 2, 0))
+							if fire then pcall(fire, pr) end
+							task.wait(0.12)
+							tries += 1
+							if not pr.Parent or not pr:IsDescendantOf(workspace) then break end
+						end
+						if pr.Parent and tries >= 25 then
+							pcall(function() pr:SetAttribute("FuseErrorInteract", true) end)
+							fuseErr[pr] = true
+						end
+					end
+					task.wait(0.15)
+				end
+
+				-- Lever + lùi sau character
+				do
+					local lever = nearestPrompt(function(p)
+						local n = string.lower(p.Name .. (p.Parent and p.Parent.Name or ""))
+						return n:find("lever") or n:find("pull") or n:find("switch")
+					end)
+					if lever and lever.Parent then
+						local adOk, ad = pcall(function()
+							local p = lever.Parent
+							return p:IsA("BasePart") and p or p:FindFirstChildWhichIsA("BasePart")
+						end)
+						if adOk and ad then
+							local root, char = getRoot()
+							if root and char then
+								local look = root.CFrame.LookVector
+								char:PivotTo(CFrame.new(root.Position - look * 8, root.Position))
+								task.wait(0.1)
+								char:PivotTo(ad.CFrame * CFrame.new(0, 2, 0))
+								if fire then pcall(fire, lever) end
+								for _ = 1, 20 do
+									local r, c = getRoot()
+									if not r or not c then break end
+									local lv = r.CFrame.LookVector
+									c:PivotTo(CFrame.new(r.Position - lv * 6, r.Position - lv * 8))
+									task.wait(0.1)
+								end
+							end
+						end
+					end
+				end
+
+				-- Figure ≤25 → bay gần trần (không phụ thuộc Toggles.Flight bắt buộc)
+				local figureNames = { FigureRig = true, FigureRagdoll = true, Figure = true }
+				local function getFigurePart()
+					for _, child in ipairs(workspace:GetChildren()) do
+						if figureNames[child.Name] then
+							return child.PrimaryPart or child:FindFirstChildWhichIsA("BasePart")
+						end
+					end
+					return nil
+				end
+				local function figureNear(dist)
+					local r = getRoot()
+					local p = getFigurePart()
+					return r and p and (p.Position - r.Position).Magnitude <= dist
+				end
+
+				if figureNear(25) then
+					if Toggles.Flight then
+						pcall(function() Toggles.Flight:SetValue(true) end)
+					end
+					for _ = 1, 40 do
+						local r, c = getRoot()
+						if not r or not c then break end
+						local rp = RaycastParams.new()
+						rp.FilterType = Enum.RaycastFilterType.Exclude
+						local filter = { c }
+						local fp = getFigurePart()
+						if fp and fp.Parent then table.insert(filter, fp.Parent) end
+						rp.FilterDescendantsInstances = filter
+						local hit = workspace:Raycast(r.Position, Vector3.new(0, 80, 0), rp)
+						local y
+						if hit then
+							local inst = hit.Instance
+							local half = (inst and inst.Size and inst.Size.Y or 2) / 2
+							y = hit.Position.Y - half - 3
+						else
+							y = r.Position.Y + 20
+						end
+						c:PivotTo(CFrame.new(r.Position.X, y, r.Position.Z))
+						r.AssemblyLinearVelocity = Vector3.zero
+						if not figureNear(25) then break end
+						task.wait(0.05)
+					end
+					if Toggles.Flight then
+						pcall(function() Toggles.Flight:SetValue(false) end)
+					end
+				end
+
+				-- Key + cửa + breaker
+				local root, char = getRoot()
+				if root and char then
+					for _, d in ipairs(room:GetDescendants()) do
+						if d.Name == "Key" or d.Name == "ElectricalKey" or (typeof(d.Name) == "string" and d.Name:find("Key")) then
+							local pr = d:FindFirstChildWhichIsA("ProximityPrompt", true)
+							local part = d:IsA("BasePart") and d or d:FindFirstChildWhichIsA("BasePart")
+							if part then
+								char:PivotTo(part.CFrame * CFrame.new(0, 2, 0))
+								if pr and fire then pcall(fire, pr) end
+							end
+						end
+					end
+					local door = room:FindFirstChild("Door")
+					if door then
+						char:PivotTo(door:GetPivot() * CFrame.new(0, 1, 2))
+						for _, pr in ipairs(door:GetDescendants()) do
+							if pr:IsA("ProximityPrompt") and fire then pcall(fire, pr) end
+						end
+					end
+					for _, pr in ipairs(room:GetDescendants()) do
+						if pr:IsA("ProximityPrompt") and pr.Parent then
+							local n = string.lower(pr.Name .. pr.Parent.Name)
+							if n:find("break") or n:find("electric") or n:find("fuse") then
+								local ad = pr.Parent:IsA("BasePart") and pr.Parent or pr.Parent:FindFirstChildWhichIsA("BasePart")
+								if ad then
+									char:PivotTo(ad.CFrame * CFrame.new(0, 2, 0))
+									if fire then pcall(fire, pr) end
+								end
+							end
+						end
+					end
+				end
+
+				-- Elevator
+				local elev = room:FindFirstChild("Elevator", true) or room:FindFirstChild("ElevatorDoor", true)
+				local okElev = false
+				if elev then
+					local part = elev:IsA("BasePart") and elev or elev:FindFirstChildWhichIsA("BasePart")
+					for _ = 1, 25 do
+						local r, c = getRoot()
+						if part and r and c then
+							c:PivotTo(part.CFrame * CFrame.new(0, 2, 0))
+							local elevPr = elev:FindFirstChildWhichIsA("ProximityPrompt", true)
+							if elevPr and fire then pcall(fire, elevPr) end
+							if (r.Position - part.Position).Magnitude < 8 then
+								okElev = true
+								break
+							end
+						end
+						task.wait(0.08)
+					end
+				end
+				if not okElev then
+					if Notify then Notify("Cooldown!! Auto Hoàn Thành Thất bại!", 5) end
+				else
+					if Notify then Notify("Đã lên thang máy — chờ win!", 4) end
+				end
+			end)
+			if not ok then
+				warn("[AutoElectrical]", err)
+				if Notify then Notify("Electrical lỗi: " .. tostring(err), 5) end
+			end
+		end)
+	end,
 })
 BypassEntityBox:AddToggle('FigureHearing',{
 Text = "Anti Figure Hearing",
