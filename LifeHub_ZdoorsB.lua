@@ -1277,7 +1277,80 @@ TargetBox:AddLabel(
 	'<font color="rgb(255,215,0)">Các hỗ trợ chỉ hoạt động Floor Rush Mode / Floor có Gun Gold</font>',
 	true
 )
+TargetBox:AddToggle("AimBot", {
+	Text = "Aim Bot",
+	Default = false,
+	Tooltip = "Aim Vào Entity",
+})
+TargetBox:AddToggle("AimWallCheck", {
+	Text = "Wall Check",
+	Default = true,
+	Tooltip = "giúp kiểm tra tường Trước Khi Aim",
+})
+TargetBox:AddSlider("AimRange", {
+	Text = "Aim Range",
+	Default = 300,
+	Min = 50,
+	Max = 1200,
+	Rounding = 0,
+	Suffix = " studs",
+})
 
+local AimConn = nil
+local function LeafAimEntities()
+	local names = {
+		"RushMoving", "AmbushMoving", "A60", "A120",
+		"GlitchRush", "GlitchAmbush", "BackdoorRush",
+		"BashMoving", "FrozenAmbush", "Lookman", "Eyes",
+	}
+	local list = {}
+	for _, n in ipairs(names) do
+		local m = workspace:FindFirstChild(n)
+		if m then table.insert(list, m) end
+	end
+	return list
+end
+local function LeafStartAimBot(on)
+	if AimConn then AimConn:Disconnect() AimConn = nil end
+	if not on then return end
+	AimConn = RunService.RenderStepped:Connect(function()
+		if not (Toggles.AimBot and Toggles.AimBot.Value) then return end
+		local cam = workspace.CurrentCamera
+		local char = LocalPlayer.Character
+		if not cam or not char then return end
+		local range = (Options.AimRange and Options.AimRange.Value) or 300
+		local wallOn = Toggles.AimWallCheck and Toggles.AimWallCheck.Value
+		local origin = cam.CFrame.Position
+		local best, bestDot = nil, -1
+		for _, ent in ipairs(LeafAimEntities()) do
+			local part = ent.PrimaryPart or ent:FindFirstChild("Head") or ent:FindFirstChildWhichIsA("BasePart")
+			if not part then continue end
+			local dist = (part.Position - origin).Magnitude
+			if dist > range then continue end
+			local dir = part.Position - origin
+			if wallOn then
+				local rp = RaycastParams.new()
+				rp.FilterType = Enum.RaycastFilterType.Exclude
+				rp.FilterDescendantsInstances = { char, ent }
+				local hit = workspace:Raycast(origin, dir, rp)
+				if hit and not hit.Instance:IsDescendantOf(ent) then continue end
+			end
+			local dot = cam.CFrame.LookVector:Dot(dir.Unit)
+			if dot > bestDot then bestDot, best = dot, part end
+		end
+		if best then
+			cam.CFrame = cam.CFrame:Lerp(CFrame.lookAt(origin, best.Position), 0.18)
+		end
+	end)
+end
+task.spawn(function()
+	local last = false
+	while true do
+		local v = Toggles.AimBot and Toggles.AimBot.Value
+		if v ~= last then last = v LeafStartAimBot(v) end
+		task.wait(0.2)
+	end
+end)
 -- ===== Auto Bring Item Drop =====
 local AutoBringNotif = { t = 0, n = 0, told = {} }
 local AutoBringConn = nil
@@ -4697,7 +4770,6 @@ HotelFloor:AddToggle("AutoHotel", {
 		end)
 	end,
 })
--- Nhặt chìa (Abysall-style KeyObtain)
 do
 	local rooms = workspace:FindFirstChild("CurrentRooms")
 	local roomNum = tonumber(LocalPlayer:GetAttribute("CurrentRoom")) or 0
@@ -4726,6 +4798,72 @@ do
 		end
 	end
 end
+HotelFloor:AddToggle("DeleteSeekHotelFE", {
+	Text = "Delete Seek Hotel [FE]",
+	Default = false,
+	Risky = true,
+	Tooltip = "Xoá Trigger của Seek trong Hotel,áp dụng Màn chạy 1,2,Có tỉ lệ không Hoạt Động",
+	Callback = function(Value)
+		if not Value then return end
+		task.spawn(function()
+			local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+			if not root then
+				if Notify then Notify("Delete Seek Hotel thất bại", 3) end
+				return
+			end
+			local rooms = workspace:FindFirstChild("CurrentRooms")
+			if not rooms then return end
+			for _, v in pairs(rooms:GetDescendants()) do
+				if v.Name ~= "TriggerEventCollision" then continue end
+				if Notify then Notify("Deleting Seek (Hotel)...", 2) end
+				local coll = v:FindFirstChild("Collision")
+				if not coll then
+					pcall(function() coll = v.ChildAdded:Wait() end)
+				end
+				if not coll or not coll:IsA("BasePart") then continue end
+
+				pcall(function()
+					if FireTouch or firetouchinterest then
+						local ft = FireTouch or firetouchinterest
+						ft(root, coll, 0)
+						task.wait()
+						ft(root, coll, 1)
+					end
+				end)
+				task.wait(0.1)
+
+				-- Bước 2: phóng to NGANG (X/Z), giữ Y
+				local oldSize = coll.Size
+				pcall(function()
+					coll.Size = Vector3.new(120, oldSize.Y, 120)
+				end)
+
+				-- Pivot về player 3 lần
+				for i = 1, 15 do
+					pcall(function()
+						coll.CFrame = root.CFrame
+					end)
+					task.wait(0.01)
+				end
+
+				pcall(function() coll.Size = oldSize end)
+
+				task.spawn(function()
+					task.wait(5.3)
+					if not v.Parent then
+						if Notify then Notify("Delete Trigger Seek Success!", 4) end
+						return
+					end
+					if v:FindFirstChild("Collision") then
+						if Notify then Notify("Delete Trigger Seek thất bại!", 4) end
+					else
+						if Notify then Notify("Delete Trigger Seek Success!", 4) end
+					end
+				end)
+			end
+		end)
+	end,
+})
 task.defer(function()
 	task.wait(0.5)
 	pcall(function()
