@@ -1543,6 +1543,206 @@ task.defer(function()
 		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
 		if lbl then lbl.TextSize = math.max(10, (lbl.TextSize or 14) - 2) end
 	end)
+local RemoveSnareConn, RemoveEyesConn = nil, nil
+
+TargetBox:AddToggle("RemoveSnare", {
+	Text = "Remove Snare",
+	Default = false,
+	Tooltip = "Xoá sổ Cạm bẫy Trap",
+	Callback = function(Value)
+		if RemoveSnareConn then task.cancel(RemoveSnareConn) RemoveSnareConn = nil end
+		if not Value then return end
+		local done = {}
+		RemoveSnareConn = task.spawn(function()
+			while Toggles.RemoveSnare and Toggles.RemoveSnare.Value do
+				local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+				if root then
+					local function handleSnare(model)
+						if not model or done[model] then return end
+						local part = model.PrimaryPart or model:FindFirstChild("Hitbox") or model:FindFirstChildWhichIsA("BasePart")
+						if not part then return end
+						if (part.Position - root.Position).Magnitude > 175 then return end
+						done[model] = true
+						pcall(function()
+							for _, p in ipairs(model:GetDescendants()) do
+								if p:IsA("BasePart") then
+									p.Size = Vector3.new(0.1, 0.1, 0.1)
+									p.CanTouch = false
+									p.CanCollide = false
+								end
+							end
+							local pos = part.Position
+							local cf = CFrame.new(pos.X, -499, pos.Z)
+							if model.PivotTo then model:PivotTo(cf) else part.CFrame = cf end
+						end)
+					end
+					-- workspace + CurrentRooms
+					for _, obj in ipairs(workspace:GetChildren()) do
+						if obj.Name == "Snare" then handleSnare(obj) end
+					end
+					local rooms = workspace:FindFirstChild("CurrentRooms")
+					if rooms then
+						for _, obj in ipairs(rooms:GetDescendants()) do
+							if obj.Name == "Snare" then handleSnare(obj) end
+						end
+					end
+				end
+				task.wait(0.15)
+			end
+		end)
+	end,
+})
+
+TargetBox:AddToggle("RemoveEyes", {
+	Text = "Remove Eyes Lookman",
+	Default = false,
+	Tooltip = "Xoá Sổ Eye và Look man trog phòng",
+	Callback = function(Value)
+		if RemoveEyesConn then task.cancel(RemoveEyesConn) RemoveEyesConn = nil end
+		if not Value then return end
+		local done = {}
+		RemoveEyesConn = task.spawn(function()
+			while Toggles.RemoveEyes and Toggles.RemoveEyes.Value do
+				local roomNum = LocalPlayer:GetAttribute("CurrentRoom")
+				local rooms = workspace:FindFirstChild("CurrentRooms")
+				local room = rooms and roomNum and rooms:FindFirstChild(tostring(roomNum))
+				local function handleEyes(model)
+					if not model or done[model] then return end
+					done[model] = true
+					pcall(function()
+						local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+						if not part then return end
+						local pos = part.Position
+						local cf = CFrame.new(pos.X, -499, pos.Z)
+						if model.PivotTo then model:PivotTo(cf) else part.CFrame = cf end
+						for _, p in ipairs(model:GetDescendants()) do
+							if p:IsA("BasePart") then
+								p.Anchored = true
+							end
+						end
+					end)
+				end
+				local names = { "Eyes", "Lookman", "BackdoorLookman", "EyesRushMode" }
+				if room then
+					for _, n in ipairs(names) do
+						local e = room:FindFirstChild(n, true)
+						if e then handleEyes(e) end
+					end
+				end
+				for _, n in ipairs(names) do
+					local e = workspace:FindFirstChild(n)
+					if e then handleEyes(e) end
+				end
+				task.wait(0.2)
+			end
+		end)
+	end,
+})
+
+TargetBox:AddButton({
+	Text = "Delete Jeff [FE]",
+	DoubleClick = true,
+	Func = function()
+		local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+		if not root then
+			if Notify then Notify("Delete Jeff thất bại", 3) end
+			return
+		end
+		local jeff = workspace:FindFirstChild("JeffTheKiller")
+		if not jeff then
+			for _, c in ipairs(workspace:GetChildren()) do
+				if string.lower(c.Name):find("jeff") then jeff = c break end
+			end
+		end
+		if not jeff then
+			if Notify then Notify("Delete Jeff thất bại: không có Jeff ≤95 studs!", 3) end
+			return
+		end
+		local jPart = jeff.PrimaryPart or jeff:FindFirstChild("HumanoidRootPart") or jeff:FindFirstChildWhichIsA("BasePart")
+		if not jPart then
+			if Notify then Notify("Delete Jeff thất bại: không có part!", 3) end
+			return
+		end
+		if (jPart.Position - root.Position).Magnitude > 95 then
+			if Notify then Notify("Delete Jeff thất bại: Jeff ngoài 95 studs!", 3) end
+			return
+		end
+
+		local hasNet = false
+		pcall(function()
+			if isnetworkowner and isnetworkowner(jPart) then hasNet = true end
+		end)
+
+		if hasNet then
+			pcall(function()
+				local hum = jeff:FindFirstChildOfClass("Humanoid")
+				if hum then hum.Health = 0 end
+				local cf = CFrame.new(jPart.Position.X, -49999, jPart.Position.Z)
+				if jeff.PivotTo then jeff:PivotTo(cf) else jPart.CFrame = cf end
+			end)
+			if Notify then Notify("Delete Jeff FE Success!", 4) end
+			return
+		end
+
+		-- Không network: Tag + hitbox + ChangeState 15 + HRP Y
+		pcall(function()
+			jeff:SetAttribute("LeafKillTag", true)
+			for _, p in ipairs(jeff:GetDescendants()) do
+				if p:IsA("BasePart") then
+					p.Size = Vector3.new(60, 60, 60)
+					p.CanCollide = true
+					p.CanTouch = true
+				end
+			end
+			local hum = jeff:FindFirstChildOfClass("Humanoid")
+			if hum then
+				pcall(function() hum:ChangeState(Enum.HumanoidStateType.Dead) end) -- 15
+				pcall(function() hum.Health = 0 end)
+			end
+			local hrp = jeff:FindFirstChild("HumanoidRootPart") or jPart
+			if hrp then
+				hrp.CFrame = CFrame.new(hrp.Position.X, -49999, hrp.Position.Z)
+			end
+		end)
+
+		task.spawn(function()
+			task.wait(0.5)
+			local still = false
+			for _, c in ipairs(workspace:GetChildren()) do
+				if c.Name == "JeffTheKiller" or (c:GetAttribute("LeafKillTag") and string.lower(c.Name):find("jeff")) then
+					local p = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
+					if p and root and (p.Position - root.Position).Magnitude <= 150 then
+						still = true
+						break
+					end
+				end
+			end
+			if not still then
+				pcall(function()
+					if jeff and jeff.Parent then jeff:SetAttribute("LeafKillTag", nil) end
+				end)
+				if Notify then Notify("Delete Jeff FE Success!", 4) end
+			else
+				if Notify then Notify("Delete Jeff thất bại: Jeff vẫn trong Phạm Vi!", 4) end
+			end
+		end)
+	end,
+})
+
+task.defer(function()
+	task.wait(0.45)
+	pcall(function()
+		for _, b in pairs(Buttons or {}) do
+			if typeof(b) == "table" and b.Text and tostring(b.Text):find("Delete Jeff") then
+				local lbl = b.TextLabel or (b.Object and b.Object:FindFirstChildWhichIsA("TextLabel", true))
+				if lbl then
+					lbl.RichText = true
+					lbl.Text = '<font color="rgb(255,40,40)">Delete Jeff [FE]</font>'
+				end
+			end
+		end
+	end)
+end)
 end)
 local AutoBox = Tabs.Main:AddRightGroupbox('Auto','bot')
 local ReachBox = Tabs.Main:AddRightGroupbox('Reach','maximize')
