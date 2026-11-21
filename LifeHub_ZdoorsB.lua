@@ -1396,6 +1396,21 @@ TargetBox:AddToggle("AutoBringItemDrop", {
 		end)
 	end,
 })
+local ExploitOthersBox = SubExploit:AddLeftGroupbox("Others", "bomb")
+ExploitOthersBox:AddToggle("GodModeFigure", {
+	Text = "God Mode Figure",
+	Default = false,
+	Risky = true,
+})
+ExploitOthersBox:AddLabel(
+	'<font color="rgb(255,80,80)">Cơ chế có thể thất bại nếu thực hiện khi Lag, Ping không ổn định</font>',
+	true
+)
+ExploitOthersBox:AddDropdown("GodModeFigureMode", {
+	Text = "Mode",
+	Values = { "Flying Body", "Step Block" },
+	Default = "Flying Body",
+})
 local KillPlayerBox = SubExploit:AddRightGroupbox("Kill Player", "ban")
 KillPlayerBox:AddDropdown("KillPlayerTarget", {
 	Text = "Target Player",
@@ -1708,114 +1723,164 @@ TargetBox:AddToggle("RemoveEyes", {
 				end
 				task.wait(0.2)
 			end
-		end)
-	end,
-})
-
-TargetBox:AddButton({
+local DeleteJeffConn = nil
+TargetBox:AddToggle("DeleteJeffFE", {
 	Text = "Delete Jeff [FE]",
-	DoubleClick = true,
-	Func = function()
-		local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-		if not root then
-			if Notify then Notify("Delete Jeff thất bại", 3) end
-			return
+	Default = false,
+	Risky = true,
+	Tooltip = "Xoá Sổ Jeff The Killers Bypass FE Sever",
+	Callback = function(Value)
+		if DeleteJeffConn then task.cancel(DeleteJeffConn) DeleteJeffConn = nil end
+		if not Value then return end
+		-- tạm tắt Anti Jeff
+		if Toggles.AntiJeff and Toggles.AntiJeff.Value then
+			Toggles.AntiJeff:SetValue(false)
 		end
-		local jeff = workspace:FindFirstChild("JeffTheKiller")
-		if not jeff then
-			for _, c in ipairs(workspace:GetChildren()) do
-				if string.lower(c.Name):find("jeff") then jeff = c break end
-			end
-		end
-		if not jeff then
-			if Notify then Notify("Delete Jeff thất bại: không có Jeff ≤95 studs!", 3) end
-			return
-		end
-		local jPart = jeff.PrimaryPart or jeff:FindFirstChild("HumanoidRootPart") or jeff:FindFirstChildWhichIsA("BasePart")
-		if not jPart then
-			if Notify then Notify("Delete Jeff thất bại: không có part!", 3) end
-			return
-		end
-		if (jPart.Position - root.Position).Magnitude > 95 then
-			if Notify then Notify("Delete Jeff thất bại: Jeff ngoài 95 studs!", 3) end
-			return
-		end
-
-		local hasNet = false
-		pcall(function()
-			if isnetworkowner and isnetworkowner(jPart) then hasNet = true end
-		end)
-
-		if hasNet then
-			pcall(function()
-				local hum = jeff:FindFirstChildOfClass("Humanoid")
-				if hum then hum.Health = 0 end
-				local cf = CFrame.new(jPart.Position.X, -49999, jPart.Position.Z)
-				if jeff.PivotTo then jeff:PivotTo(cf) else jPart.CFrame = cf end
-			end)
-			if Notify then Notify("Delete Jeff FE Success!", 4) end
-			return
-		end
-
-		-- Không network: Tag + hitbox + ChangeState 15 + HRP Y
-		pcall(function()
-			jeff:SetAttribute("LeafKillTag", true)
-			for _, p in ipairs(jeff:GetDescendants()) do
-				if p:IsA("BasePart") then
-					p.Size = Vector3.new(60, 60, 60)
-					p.CanCollide = true
-					p.CanTouch = true
-				end
-			end
-			local hum = jeff:FindFirstChildOfClass("Humanoid")
-			if hum then
-				pcall(function() hum:ChangeState(Enum.HumanoidStateType.Dead) end) -- 15
-				pcall(function() hum.Health = 0 end)
-			end
-			local hrp = jeff:FindFirstChild("HumanoidRootPart") or jPart
-			if hrp then
-				hrp.CFrame = CFrame.new(hrp.Position.X, -49999, hrp.Position.Z)
-			end
-		end)
-
-		task.spawn(function()
-			task.wait(0.5)
-			local still = false
-			for _, c in ipairs(workspace:GetChildren()) do
-				if c.Name == "JeffTheKiller" or (c:GetAttribute("LeafKillTag") and string.lower(c.Name):find("jeff")) then
-					local p = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
-					if p and root and (p.Position - root.Position).Magnitude <= 150 then
-						still = true
-						break
+		DeleteJeffConn = task.spawn(function()
+			while Toggles.DeleteJeffFE and Toggles.DeleteJeffFE.Value do
+				local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+				if not root then task.wait(0.3) continue end
+				local jeff = workspace:FindFirstChild("JeffTheKiller")
+				if not jeff then
+					for _, c in ipairs(workspace:GetChildren()) do
+						if string.lower(c.Name):find("jeff") then jeff = c break end
 					end
 				end
-			end
-			if not still then
+				if not jeff then task.wait(0.3) continue end
+				local jPart = jeff.PrimaryPart or jeff:FindFirstChild("HumanoidRootPart") or jeff:FindFirstChildWhichIsA("BasePart")
+				if not jPart or (jPart.Position - root.Position).Magnitude > 95 then
+					task.wait(0.25) continue
+				end
+
+				local hasNet = false
 				pcall(function()
-					if jeff and jeff.Parent then jeff:SetAttribute("LeafKillTag", nil) end
+					if isnetworkowner and isnetworkowner(jPart) then hasNet = true end
 				end)
-				if Notify then Notify("Delete Jeff FE Success!", 4) end
-			else
-				if Notify then Notify("Delete Jeff thất bại: Jeff vẫn trong Phạm Vi!", 4) end
+
+				if hasNet then
+					-- duyệt part → 0.05s → mất va chạm
+					pcall(function()
+						for _, p in ipairs(jeff:GetDescendants()) do
+							if p:IsA("BasePart") then p.CanCollide = false p.CanTouch = false end
+						end
+					end)
+					task.wait(0.05)
+					pcall(function()
+						for _, p in ipairs(jeff:GetDescendants()) do
+							if p:IsA("BasePart") then p.CanCollide = false end
+						end
+						local hum = jeff:FindFirstChildOfClass("Humanoid")
+						if hum then hum.Health = 0 end
+						local cf = CFrame.new(jPart.Position.X, -49999, jPart.Position.Z)
+						if jeff.PivotTo then jeff:PivotTo(cf) else jPart.CFrame = cf end
+					end)
+					if Notify then Notify("Delete Jeff FE Success!", 4) end
+					break
+				else
+					-- set SimulationRadius sớm
+					pcall(function()
+						if sethiddenproperty then
+							sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 1000)
+							sethiddenproperty(LocalPlayer, "SimulationRadius", 1000)
+						end
+						if setsimulationradius then setsimulationradius(1000) end
+					end)
+					pcall(function()
+						jeff:SetAttribute("LeafKillTag", true)
+						for _, p in ipairs(jeff:GetDescendants()) do
+							if p:IsA("BasePart") then
+								p.Size = Vector3.new(60, 60, 60)
+								p.CanCollide = true
+								p.CanTouch = true
+							end
+						end
+						local hum = jeff:FindFirstChildOfClass("Humanoid")
+						if hum then
+							pcall(function() hum:ChangeState(Enum.HumanoidStateType.Dead) end)
+							hum.Health = 0
+							hum.WalkSpeed = 1000
+						end
+					end)
+					task.wait(0.5)
+					local still = false
+					local p = jeff.PrimaryPart or jeff:FindFirstChildWhichIsA("BasePart")
+					if p and (p.Position - root.Position).Magnitude <= 120 then still = true end
+					if not still then
+						if Notify then Notify("Delete Jeff FE Success!", 4) end
+						break
+					else
+						pcall(function()
+							for _, bp in ipairs(jeff:GetDescendants()) do
+								if bp:IsA("BasePart") then
+									bp.CanCollide = false
+									bp.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0, 0, 0, 0)
+								end
+							end
+							local hum = jeff:FindFirstChildOfClass("Humanoid")
+							if hum then hum.WalkSpeed = 1000 end
+						end)
+						if Notify then Notify("Delete Jeff thất bại — đã gắn slide + WS 1000", 3) end
+					end
+				end
+				task.wait(0.4)
 			end
 		end)
 	end,
 })
-
 task.defer(function()
-	task.wait(0.45)
+	task.wait(0.4)
 	pcall(function()
-		for _, b in pairs(Buttons or {}) do
-			if typeof(b) == "table" and b.Text and tostring(b.Text):find("Delete Jeff") then
-				local lbl = b.TextLabel or (b.Object and b.Object:FindFirstChildWhichIsA("TextLabel", true))
-				if lbl then
-					lbl.RichText = true
-					lbl.Text = '<font color="rgb(255,40,40)">Delete Jeff [FE]</font>'
-				end
-			end
+		local t = Toggles.DeleteJeffFE
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(255,40,40)">Delete Jeff [FE]</font>'
 		end
 	end)
 end)
+local RemoveJackConn = nil
+TargetBox:AddToggle("RemoveJack", {
+	Text = "Remove Jack",
+	Default = false,
+	Tooltip = "Chặn Jack Spam,Âm thanh, Hình Ảnh của Jack",
+	Callback = function(Value)
+		if RemoveJackConn then
+			for _, c in ipairs(RemoveJackConn) do pcall(function() c:Disconnect() end) end
+			RemoveJackConn = nil
+		end
+		if not Value then return end
+		RemoveJackConn = {}
+		local function nuke(obj)
+			if not obj or not obj.Parent then return end
+			local n = string.lower(obj.Name)
+			-- rộng hơn "jack": jumpscare / spider-like client FX
+			if n:find("jack") or n:find("jumpscare") or n:find("closetmonster") then
+				pcall(function()
+					if obj:IsA("Sound") then obj.Volume = 0 obj:Stop() obj:Destroy()
+					elseif obj:IsA("ScreenGui") or obj:IsA("Frame") or obj:IsA("ImageLabel") then obj:Destroy()
+					elseif obj:IsA("ParticleEmitter") then obj.Enabled = false
+					end
+				end)
+			end
+		end
+		-- PlayerGui event only
+		local pg = LocalPlayer:FindFirstChild("PlayerGui")
+		if pg then
+			table.insert(RemoveJackConn, pg.DescendantAdded:Connect(nuke))
+			for _, d in ipairs(pg:GetDescendants()) do
+				if d:IsA("Sound") or d:IsA("ScreenGui") or d:IsA("Frame") then nuke(d) end
+			end
+		end
+		local cam = workspace.CurrentCamera
+		if cam then
+			table.insert(RemoveJackConn, cam.DescendantAdded:Connect(nuke))
+		end
+		-- SoundService một lần + ChildAdded
+		local ss = game:GetService("SoundService")
+		table.insert(RemoveJackConn, ss.DescendantAdded:Connect(nuke))
+	end,
+})
 end)
 local AutoBox = Tabs.Main:AddRightGroupbox('Auto','bot')
 local ReachBox = Tabs.Main:AddRightGroupbox('Reach','maximize')
@@ -2417,7 +2482,7 @@ end
 end
 })
 MinesFloor:AddToggle('FixBrokenBridge',{
-Text = "Tạo Part Sửa cầu vỡ màn The Mine",
+Text = "Auto Fix BrokenBridge",
 Default = false,
 Callback = function(Value)
 if Value then
@@ -6080,7 +6145,6 @@ if Toggles.VirtualCollisionFigure and Toggles.VirtualCollisionFigure.Value then
 	local RootPart = char and char:FindFirstChild("HumanoidRootPart")
 	local Collision = char and char:FindFirstChild("Collision")
 	if RootPart and Collision then
-		-- Nguyên văn Abysall
 		Collision.Position = RootPart.Position + Vector3.new(0, 200, 0)
 	end
 end
@@ -6098,41 +6162,69 @@ CollisionClone:FindFirstChild("CollisionCrouch"):Destroy()
 end
 end
 end
--- Lower body avoid Figure (AN TOÀN — không trừ dồn mỗi frame)
-if Toggles.LowerBodyFigure and Toggles.LowerBodyFigure.Value then
+-- God Mode Figure
+if Toggles.GodModeFigure and Toggles.GodModeFigure.Value then
+	local mode = (Options.GodModeFigureMode and Options.GodModeFigureMode.Value) or "Flying Body"
 	local char = LocalPlayer.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
+	local figNear, figDist = false, 999
 	if root then
-		local nearFig, figPos = false, nil
-		for _, obj in ipairs(workspace:GetChildren()) do
-			if obj.Name == "FigureRig" or obj.Name == "FigureRagdoll" then
-				local part = obj.PrimaryPart
-					or obj:FindFirstChild("Root")
-					or obj:FindFirstChildWhichIsA("BasePart")
-				if part then
-					local d = (part.Position - root.Position).Magnitude
-					if d <= 15 then
-						nearFig = true
-						figPos = part.Position
-						break
-					end
-				end
+		for _, n in ipairs({ "FigureRig", "FigureRagdoll", "Figure" }) do
+			local m = workspace:FindFirstChild(n, true)
+			local p = m and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart"))
+			if p then
+				local d = (p.Position - root.Position).Magnitude
+				if d < figDist then figDist = d end
+				if d <= (mode == "Step Block" and 31 or 25) then figNear = true end
 			end
 		end
-		if nearFig and figPos then
-			-- Giữ Y = FigureY - 3.764 (cố định theo Figure, không rơi mãi)
-			local targetY = figPos.Y - 3.764
-			local pos = root.Position
-			local look = root.CFrame.LookVector
-			root.CFrame = CFrame.new(pos.X, targetY, pos.Z) * CFrame.Angles(0, math.atan2(-look.X, -look.Z), 0)
-			local coll = char:FindFirstChild("Collision")
-			if coll then
-				coll.CanCollide = false
-				coll.Position = root.Position + Vector3.new(0, 0.18, 0)
+	end
+	if mode == "Flying Body" then
+		if figNear and root then
+			local targetY = root.Position.Y -- giữ offset +11 từ lúc phát hiện
+			if not getgenv().LeafGodFigY then
+				getgenv().LeafGodFigY = root.Position.Y + 11
 			end
-			local cp = char:FindFirstChild("CollisionPart")
-			if cp then
-				cp.Position = root.Position + Vector3.new(0, 0.18, 0)
+			char:PivotTo(CFrame.new(root.Position.X, getgenv().LeafGodFigY, root.Position.Z))
+			root.AssemblyLinearVelocity = Vector3.zero
+			root.AssemblyAngularVelocity = Vector3.zero
+			if Toggles.Flight and not Toggles.Flight.Value then
+				-- optional: không bắt buộc bật toggle Flight
+			end
+		else
+			getgenv().LeafGodFigY = nil
+		end
+	else
+		-- Step Block
+		local part = workspace:FindFirstChild("LeafGodFigBlock")
+		if not part then
+			part = Instance.new("Part")
+			part.Name = "LeafGodFigBlock"
+			part.Anchored = true
+			part.CanCollide = true
+			part.Material = Enum.Material.Glass
+			part.Color = Color3.fromRGB(50, 205, 50)
+			part.Transparency = 0.35
+			part.Size = Vector3.new(6, 1, 6)
+			part.Parent = workspace
+		end
+		if figNear and root then
+			if not getgenv().LeafGodFigBlockY then
+				getgenv().LeafGodFigBlockY = root.Position.Y
+			end
+			local base = getgenv().LeafGodFigBlockY
+			local elev = math.min(13, (getgenv().LeafGodFigElev or 0) + 6.5 * (dt or 0.016))
+			getgenv().LeafGodFigElev = elev
+			part.Transparency = 0.35
+			part.CanCollide = true
+			part.Position = Vector3.new(root.Position.X, base + elev - 0.5, root.Position.Z)
+		else
+			getgenv().LeafGodFigElev = 0
+			getgenv().LeafGodFigBlockY = nil
+			if part then
+				part.Transparency = 1
+				part.CanCollide = false
+				part.Position = Vector3.new(0, -500, 0)
 			end
 		end
 	end
