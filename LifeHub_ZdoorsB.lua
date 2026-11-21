@@ -1262,20 +1262,288 @@ task.defer(function()
 end)
 local PlayerBox = Tabs.Main:AddLeftGroupbox('Body','person-standing')
 local GameBox = Tabs.Main:AddLeftGroupbox('Game Management','gamepad-2')
-local SubHotel   = Tabs.Floor:AddSubTab("Hotel", "hotel")
-local SubMines   = Tabs.Floor:AddSubTab("Mines", "pickaxe")
-local SubFools   = Tabs.Floor:AddSubTab("Fools", "ghost")
-local SubRooms   = Tabs.Floor:AddSubTab("Rooms", "door-open")
-local SubRetro   = Tabs.Floor:AddSubTab("Retro", "clock")
-local SubExploit = Tabs.Floor:AddSubTab("Exploit", "biohazard") -- khí độc
+local SubFloors = Tabs.Floor:AddSubTab("Floors", "building")
+local SubExploit = Tabs.Floor:AddSubTab("Exploit", "biohazard")
 
-local HotelFloor = SubHotel:AddLeftGroupbox("Hotel", "hotel")
-local MinesFloor = SubMines:AddRightGroupbox("Mines", "pickaxe")
-local FoolsFloor = SubFools:AddRightGroupbox("Fools", "ghost")
-local RoomsFloor = SubRooms:AddLeftGroupbox("Rooms", "door-open")
-local RetroFloor = SubRetro:AddLeftGroupbox("Retro", "clock")
+local HotelFloor = SubFloors:AddLeftGroupbox("Hotel", "hotel")
+local MinesFloor = SubFloors:AddRightGroupbox("Mines", "pickaxe")
+local FoolsFloor = SubFloors:AddRightGroupbox("Fools", "ghost")
+local RoomsFloor = SubFloors:AddLeftGroupbox("Rooms", "door-open")
+local RetroFloor = SubFloors:AddLeftGroupbox("Retro", "clock")
 
 local TargetBox = SubExploit:AddLeftGroupbox("Target", "crosshair")
+-- Label vàng
+TargetBox:AddLabel(
+	'<font color="rgb(255,215,0)">Các hỗ trợ chỉ hoạt động Floor Rush Mode / Floor có Gun Gold</font>',
+	true
+)
+
+-- ===== Auto Bring Item Drop =====
+local AutoBringNotif = { t = 0, n = 0, told = {} }
+local AutoBringConn = nil
+
+TargetBox:AddToggle("AutoBringItemDrop", {
+	Text = "Auto Bring Item Drop",
+	Default = false,
+	Tooltip = "Bring liên tục item drop",
+	Callback = function(Value)
+		if AutoBringConn then task.cancel(AutoBringConn) AutoBringConn = nil end
+		if not Value then return end
+		AutoBringConn = task.spawn(function()
+			while Toggles.AutoBringItemDrop and Toggles.AutoBringItemDrop.Value do
+				local char = LocalPlayer.Character
+				local root = char and char:FindFirstChild("HumanoidRootPart")
+				local drops = workspace:FindFirstChild("Drops")
+				if root and drops then
+					for _, drop in ipairs(drops:GetChildren()) do
+						local part = drop.PrimaryPart or drop:FindFirstChildWhichIsA("BasePart")
+						if not part then continue end
+						-- bring gần đầu
+						local target = root.CFrame * CFrame.new(0, 2.2, 0)
+						pcall(function()
+							if drop.PivotTo then drop:PivotTo(target)
+							else part.CFrame = target end
+						end)
+						-- notify 1 lần / item, max 3 / 5s
+						local now = tick()
+						if now - AutoBringNotif.t > 5 then
+							AutoBringNotif.t, AutoBringNotif.n = now, 0
+							table.clear(AutoBringNotif.told)
+						end
+						local key = drop.Name .. "_" .. tostring(drop)
+						if not AutoBringNotif.told[key] and AutoBringNotif.n < 3 then
+							AutoBringNotif.told[key] = true
+							AutoBringNotif.n += 1
+							if Notify then Notify("Bring: " .. drop.Name, 2) end
+						end
+					end
+				end
+				task.wait(0.05)
+			end
+		end)
+	end,
+})
+local KillPlayerBox = SubExploit:AddRightGroupbox("Kill Player", "ban")
+KillPlayerBox:AddDropdown("KillPlayerTarget", {
+	Text = "Target Player",
+	Values = { "Nearest" },
+	Default = 1,
+})
+
+task.spawn(function()
+	while true do
+		task.wait(2)
+		local names = { "Nearest" }
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr ~= LocalPlayer then table.insert(names, plr.Name) end
+		end
+		pcall(function()
+			if Options.KillPlayerTarget then Options.KillPlayerTarget:SetValues(names) end
+		end)
+	end
+end)
+
+local function LeafPickKillTarget()
+	local pick = Options.KillPlayerTarget and Options.KillPlayerTarget.Value or "Nearest"
+	local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if pick ~= "Nearest" then
+		local p = Players:FindFirstChild(pick)
+		if p and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then return p end
+	end
+	local best, bd = nil, 500
+	if not myRoot then return nil end
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr == LocalPlayer then continue end
+		local r = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+		if r then
+			local d = (r.Position - myRoot.Position).Magnitude
+			if d < bd then best, bd = plr, d end
+		end
+	end
+	return best
+end
+
+local function LeafFindKillEntity()
+	-- ưu tiên 300 studs: Figure / Noise
+	local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not root then return nil, nil end
+	local best, bd, kind = nil, 300, nil
+	local function consider(model, k)
+		local p = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+		if not p then return end
+		local d = (p.Position - root.Position).Magnitude
+		if d <= 300 and d < bd then best, bd, kind = model, d, k end
+	end
+	for _, n in ipairs({ "FigureRig", "FigureRagdoll", "Figure", "Noise", "Noise_TV", "NoiseModel", "TV_Stand" }) do
+		local m = workspace:FindFirstChild(n, true)
+		if m then consider(m, n) end
+	end
+	-- scan workspace children
+	for _, m in ipairs(workspace:GetChildren()) do
+		local ln = string.lower(m.Name)
+		if ln:find("figure") or ln:find("noise") then consider(m, m.Name) end
+	end
+	return best, kind
+end
+
+KillPlayerBox:AddButton({
+	Text = "Kill Player",
+	DoubleClick = true,
+	Func = function()
+		local target = LeafPickKillTarget()
+		if not target or not target.Character then
+			if Notify then Notify("Thiếu player xung quanh!", 3) end
+			return
+		end
+		local tRoot = target.Character:FindFirstChild("HumanoidRootPart")
+		local tHum = target.Character:FindFirstChildOfClass("Humanoid")
+		if not tRoot then
+			if Notify then Notify("Thiếu player / HRP!", 3) end
+			return
+		end
+
+		local ent, entName = LeafFindKillEntity()
+		if not ent then
+			-- Kill brick fallback?
+			local brick = workspace:FindFirstChild("KillBrick", true) or workspace:FindFirstChild("Kill", true)
+			if brick and brick:IsA("BasePart") then
+				pcall(function() brick.Size = Vector3.new(30, 30, 30) end)
+				local conn
+				local t0 = tick()
+				conn = RunService.Heartbeat:Connect(function()
+					if tick() - t0 > 5 then conn:Disconnect() return end
+					pcall(function() brick:PivotTo(tRoot.CFrame) end)
+					if tHum and tHum.Health <= 0 then
+						conn:Disconnect()
+						if Notify then Notify("Đã Kill thành công player " .. target.Name .. "!", 4) end
+					end
+				end)
+				return
+			end
+			if Notify then Notify("Thiếu Figure / Noise / KillBrick trong 300 studs!", 3) end
+			return
+		end
+
+		local part = ent.PrimaryPart or ent:FindFirstChildWhichIsA("BasePart")
+		if not part then return end
+
+		local hasNet = false
+		pcall(function()
+			if isnetworkowner and isnetworkowner(part) then hasNet = true end
+		end)
+
+		if hasNet then
+			-- Bring entity part vào player khác 1 lần
+			pcall(function()
+				if ent.PivotTo then ent:PivotTo(tRoot.CFrame) else part.CFrame = tRoot.CFrame end
+			end)
+			local t0 = tick()
+			task.spawn(function()
+				while tick() - t0 < 5 do
+					task.wait(0.2)
+					local stillNear = false
+					local myR = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+					if myR and tRoot and tRoot.Parent and (tRoot.Position - myR.Position).Magnitude <= 500 then
+						stillNear = true
+					end
+					local dead = tHum and tHum.Health <= 0
+					if dead then
+						if Notify then Notify("Đã Kill thành công player " .. target.Name .. "!", 4) end
+						return
+					end
+					if not stillNear then break end
+				end
+			end)
+		else
+			-- Visual client: phóng hitbox + pivot 1 lần
+			pcall(function()
+				for _, p in ipairs(ent:GetDescendants()) do
+					if p:IsA("BasePart") then
+						p.Size = Vector3.new(15, 15, 15)
+						p.CanCollide = true
+						p.CanTouch = true
+					end
+				end
+				if ent.PivotTo then ent:PivotTo(tRoot.CFrame) else part.CFrame = tRoot.CFrame end
+			end)
+			if Notify then
+				Notify("Hiện tại Kill Player KHÔNG CÓ NETWORK OWNERSHIP — chỉ cố gắng kill Visual Client!", 5)
+			end
+		end
+	end,
+})
+
+task.defer(function()
+	task.wait(0.5)
+	pcall(function()
+	end)
+end)
+KillPlayerBox:AddToggle("DeleteOtherTools", {
+	Text = "Delete Other People's Tools",
+	Default = false,
+	Tooltip = "Risk! Ép Tool/item Người Chơi khác Rơi+Phá Hủy thông Qua Pivot Set-Y, có Không khả Thi!",
+	Callback = function(Value)
+		if not Value then return end
+		task.spawn(function()
+			while Toggles.DeleteOtherTools and Toggles.DeleteOtherTools.Value do
+				for _, plr in ipairs(Players:GetPlayers()) do
+					if plr == LocalPlayer then continue end
+					local ch = plr.Character
+					if not ch then continue end
+					for _, tool in ipairs(ch:GetChildren()) do
+						if tool:IsA("Tool") then
+							local n = tool.Name
+							-- vitamin, lockpick, sally...
+							local interesting = n:lower():find("vitamin") or n:lower():find("lock")
+								or n:lower():find("sally") or n:lower():find("crucifix")
+								or n:lower():find("key") or n:lower():find("shears")
+							if not interesting then continue end
+							pcall(function()
+								if RemotesFolder and RemotesFolder:FindFirstChild("DropItem") then
+									-- không luôn fire được tool người khác; cố gắng local
+								end
+							end)
+						end
+					end
+				end
+				-- item ngoài (Drops): hub -4999
+				local drops = workspace:FindFirstChild("Drops")
+				if drops then
+					for _, drop in ipairs(drops:GetChildren()) do
+						local part = drop.PrimaryPart or drop:FindFirstChildWhichIsA("BasePart")
+						if part and part.Position.Y > -99 then
+							pcall(function()
+								if drop.PivotTo then
+									drop:PivotTo(CFrame.new(part.Position.X, -4999, part.Position.Z))
+								else
+									part.CFrame = CFrame.new(part.Position.X, -4999, part.Position.Z)
+								end
+							end)
+							task.delay(1.5, function()
+								local p2 = drop.PrimaryPart or drop:FindFirstChildWhichIsA("BasePart")
+								if p2 and p2.Position.Y < -99 then
+									if Notify then Notify("Delete Item/Tool Other People's Success!", 3) end
+								else
+									if Notify then Notify("Delete Item/Tool thất bại!", 3) end
+								end
+							end)
+						end
+					end
+				end
+				task.wait(0.4)
+			end
+		end)
+	end,
+})
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.DeleteOtherTools
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then lbl.TextSize = math.max(10, (lbl.TextSize or 14) - 2) end
+	end)
+end)
 local AutoBox = Tabs.Main:AddRightGroupbox('Auto','bot')
 local ReachBox = Tabs.Main:AddRightGroupbox('Reach','maximize')
 local CameraBox = Tabs.Visuals:AddLeftGroupbox('Camera','camera')
