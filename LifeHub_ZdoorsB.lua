@@ -4967,7 +4967,7 @@ Tooltip = "Z",
 })
 CameraBox:AddToggle('NoCamShake',{
 Text = "No Camera Shake",
-Tooltip = "giúp nhân vật bỏ qua Rung lắc của Thực thể"
+Tooltip = "giúp nhân vật bỏ qua Rung lắc của Thực thể",
 Disabled = not require and true or false,
 })
 local OldMinZoom = LocalPlayer.CameraMinZoomDistance
@@ -6283,7 +6283,7 @@ ReachBox:AddToggle('PromptReach',{
 ReachBox:AddToggle('InstantPrompts',{
 	Text = "Instant Prompts",
 	Default = false,
-	Tooltip = "HoldDuration = 0 for all prompts",
+	Tooltip = "Ép Tương Tác Prompt về 0,Áp dụng cho tất cả Prompt",
 	Callback = function(Value)
 		for _, v in pairs(workspace:GetDescendants()) do
 			if v:IsA("ProximityPrompt") then
@@ -6293,6 +6293,8 @@ ReachBox:AddToggle('InstantPrompts',{
 				v.HoldDuration = Value and 0 or (v:GetAttribute("Hold_Old") or 0)
 			end
 		end
+	end,
+})
 		local AntiSallyConn = nil
 BypassEntityBox:AddToggle("AntiSally", {
 	Text = "Anti Sally",
