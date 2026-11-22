@@ -1978,7 +1978,7 @@ LightingBox:AddToggle("Aura999", {
 		local function apply(char)
 			if not char then return end
 			for _, p in ipairs(char:GetDescendants()) do
-				if p:IsA("BasePart") and p.Name \~= "HumanoidRootPart" then
+				if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
 					if not p:GetAttribute("LeafAura999") then
 						p:SetAttribute("LeafAura999", true)
 						p:SetAttribute("LeafAuraMat", p.Material.Name)
