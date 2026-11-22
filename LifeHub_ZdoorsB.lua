@@ -273,7 +273,7 @@ GameBox:AddToggle("GameRestore", {
 
 GameBox:AddDivider()
 
-GameBox:AddButton("Auto Enter Code", function()
+GameBox:AddButton("Remeber Code", function()
     if getgenv().LeafRedeemingCodes then return end
     getgenv().LeafRedeemingCodes = true
     local codes = {
@@ -322,7 +322,7 @@ GameBox:AddToggle("GameTitleLoop", {
 GameBox:AddSlider("GameTitleLoopSpeed", {
     Text = "Tốc độ lặp",
     Min = 0.1,
-    Max = 1,
+    Max = 2,
     Default = 0.1,
     Rounding = 2,
     Compact = true,
@@ -1468,6 +1468,309 @@ ExploitOthersBox:AddDropdown("GodModeFigureMode", {
 	Text = "Mode",
 	Values = { "Flying Body", "Step Block" },
 	Default = "Flying Body",
+})
+local ExploitOtherBox = SubExploit:AddLeftGroupbox("Main Exploitation", "boxes")
+-- Enable Sprinting
+ExploitOtherBox:AddToggle("EnableSprinting", {
+	Text = "Enable Sprinting",
+	Default = false,
+	Tooltip = "Cho phép nhân vật chạy nước rút",
+	Callback = function(Value)
+		pcall(function()
+			local char = LocalPlayer.Character
+			local hum = char and char:FindFirstChildOfClass("Humanoid")
+			if hum then
+				hum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+			end
+			-- remote sprint nếu có
+			if RemotesFolder and RemotesFolder:FindFirstChild("Sprint") then
+				RemotesFolder.Sprint:FireServer(Value)
+			end
+			if char then
+				char:SetAttribute("CanSprint", Value)
+			end
+		end)
+	end,
+})
+
+-- Remove Closet Delay
+ExploitOtherBox:AddToggle("RemoveClosetDelay", {
+	Text = "Remove Closet Delay",
+	Default = false,
+	Tooltip = "Loại bỏ độ trễ khi nhân vật trốn tủ",
+	Callback = function(Value)
+		-- Abysall: bỏ cửa sổ không thoát tủ sau anim
+		pcall(function()
+			local char = LocalPlayer.Character
+			if char then
+				char:SetAttribute("ClosetExitDelay", Value and 0 or nil)
+			end
+		end)
+	end,
+})
+-- loop nhẹ khi bật: clear hide cooldown attribute
+task.spawn(function()
+	while true do
+		task.wait(0.2)
+		if Toggles.RemoveClosetDelay and Toggles.RemoveClosetDelay.Value then
+			local c = LocalPlayer.Character
+			if c and c:GetAttribute("Hiding") then
+				pcall(function()
+					c:SetAttribute("HideTime", 0)
+					c:SetAttribute("ClosetCooldown", 0)
+				end)
+			end
+		end
+	end
+end)
+
+-- Disable Idle Kick AFK (Abysall: getconnections Idled + VirtualUser)
+ExploitOtherBox:AddToggle("DisableIdleKick", {
+	Text = "Disable Idle Kick AFK",
+	Default = false,
+	Tooltip = "Chống Game kick khi AFK lâu",
+	Callback = function(Value)
+		pcall(function()
+			if getconnections then
+				for _, conn in ipairs(getconnections(LocalPlayer.Idled)) do
+					if Value then conn:Disable() else conn:Enable() end
+				end
+			end
+		end)
+	end,
+})
+LocalPlayer.Idled:Connect(function()
+	if Toggles.DisableIdleKick and Toggles.DisableIdleKick.Value then
+		pcall(function()
+			local VU = game:GetService("VirtualUser")
+			VU:CaptureController()
+			VU:ClickButton2(Vector2.new())
+		end)
+	end
+end)
+
+-- Auto Hide in Closet
+local AutoHideConn = nil
+ExploitOtherBox:AddToggle("AutoHideInCloset", {
+	Text = "Auto Hide in Closet",
+	Default = false,
+	Tooltip = "Giúp tự động vào tủ khi có entity spam",
+	Callback = function(Value)
+		if AutoHideConn then task.cancel(AutoHideConn) AutoHideConn = nil end
+		if not Value then return end
+		local names = {
+			RushMoving = true, AmbushMoving = true, A60 = true, A120 = true,
+			GlitchRush = true, GlitchAmbush = true, BackdoorRush = true,
+		}
+		AutoHideConn = task.spawn(function()
+			while Toggles.AutoHideInCloset and Toggles.AutoHideInCloset.Value do
+				local threat = false
+				for n in pairs(names) do
+					if workspace:FindFirstChild(n) then threat = true break end
+				end
+				if threat and LocalPlayer.Character and not LocalPlayer.Character:GetAttribute("Hiding") then
+					if LeafGetNearestCloset then
+						local closet = LeafGetNearestCloset(100)
+						if closet and LeafHideInCloset then
+							pcall(LeafHideInCloset, closet)
+						end
+					else
+						-- fallback: tìm Wardrobe gần + Firepp
+						local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+						local rooms = workspace:FindFirstChild("CurrentRooms")
+						if root and rooms then
+							local best, bd = nil, 80
+							for _, inst in ipairs(rooms:GetDescendants()) do
+								if inst.Name == "Wardrobe" or inst.Name == "Toolshed" or inst.Name == "Bed" then
+									local p = inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart")
+									if p then
+										local d = (p.Position - root.Position).Magnitude
+										if d < bd then best, bd = inst, d end
+									end
+								end
+							end
+							if best then
+								local hide = best:FindFirstChild("HidePrompt", true)
+								local fire = Firepp or fireproximityprompt
+								LocalPlayer.Character:PivotTo((best.PrimaryPart or best:FindFirstChildWhichIsA("BasePart")).CFrame * CFrame.new(0, 1.2, 0))
+								if hide and fire then pcall(fire, hide) end
+							end
+						end
+					end
+				end
+				task.wait(0.2)
+			end
+		end)
+	end,
+})
+
+-- Spectate Entity
+ExploitOtherBox:AddToggle("SpectateEntityToggle", {
+	Text = "Spectate Entity",
+	Default = false,
+	Tooltip = "Giúp nhân vật & Entity quan sát khi trốn trong tủ",
+})
+ExploitOtherBox:AddDropdown("SpectateEntityMode", {
+	Text = "Spectate Mode",
+	Values = { "Entity To Player", "Player To Entity" },
+	Default = "Entity To Player",
+})
+task.spawn(function()
+	while true do
+		task.wait(0.1)
+		if not (Toggles.SpectateEntityToggle and Toggles.SpectateEntityToggle.Value) then continue end
+		if not (LocalPlayer.Character and LocalPlayer.Character:GetAttribute("Hiding")) then continue end
+		local mode = Options.SpectateEntityMode and Options.SpectateEntityMode.Value
+		local cam = workspace.CurrentCamera
+		local ent = workspace:FindFirstChild("RushMoving")
+			or workspace:FindFirstChild("AmbushMoving")
+			or workspace:FindFirstChild("A60")
+		local ep = ent and (ent.PrimaryPart or ent:FindFirstChildWhichIsA("BasePart"))
+		local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+		if cam and ep and root then
+			if mode == "Player To Entity" then
+				cam.CameraType = Enum.CameraType.Scriptable
+				cam.CFrame = CFrame.lookAt(root.Position + Vector3.new(0, 2, 0), ep.Position)
+			else
+				cam.CameraType = Enum.CameraType.Scriptable
+				cam.CFrame = CFrame.lookAt(ep.Position + Vector3.new(0, 3, 0), root.Position)
+			end
+		end
+	end
+end)
+
+-- Skip Gate Room [Hotel] (Abysall)
+local SkipGateConn = nil
+ExploitOtherBox:AddToggle("SkipGateRooms", {
+	Text = "Skip Gate Room [Hotel]",
+	Default = false,
+	Tooltip = "Giúp Skip nhân vật qua Room Gate",
+	Callback = function(Value)
+		if SkipGateConn then task.cancel(SkipGateConn) SkipGateConn = nil end
+		if not Value then return end
+		SkipGateConn = task.spawn(function()
+			local skipped = {}
+			while Toggles.SkipGateRooms and Toggles.SkipGateRooms.Value do
+				local floorVal = Floor and Floor.Value
+				if floorVal == "Hotel" or floorVal == "OldHotel" then
+					local rooms = workspace:FindFirstChild("CurrentRooms")
+					local roomNum = tonumber(LocalPlayer:GetAttribute("CurrentRoom"))
+					local room = rooms and roomNum and rooms:FindFirstChild(tostring(roomNum))
+					if room and not skipped[roomNum] and roomNum \~= 100 then
+						local isGate = room:FindFirstChild("LeverForGate", true)
+							or room:FindFirstChild("Gate", true)
+							or room:FindFirstChild("ThingToOpen", true)
+						if isGate then
+							local door = room:FindFirstChild("Door")
+							local char = LocalPlayer.Character
+							if door and char then
+								char:PivotTo(door:GetPivot() * CFrame.new(0, 1, -3))
+								local fire = Firepp or fireproximityprompt
+								for _, pr in ipairs(door:GetDescendants()) do
+									if pr:IsA("ProximityPrompt") and fire then pcall(fire, pr) end
+								end
+								if door:FindFirstChild("ClientOpen") then
+									pcall(function() door.ClientOpen:FireServer() end)
+								end
+								skipped[roomNum] = true
+							end
+						end
+					end
+				end
+				task.wait(0.25)
+			end
+		end)
+	end,
+})
+
+-- Anti-Self Cart Fling
+ExploitOtherBox:AddToggle("AntiSelfCartFling", {
+	Text = "Anti-Self Cart Fling",
+	Default = true,
+	Tooltip = "Phòng chống xe đẩy ngã nhân vật",
+	Callback = function(Value)
+		-- no-collide cart vs character khi bật
+	end,
+})
+task.spawn(function()
+	while true do
+		task.wait(0.3)
+		if not (Toggles.AntiSelfCartFling and Toggles.AntiSelfCartFling.Value) then continue end
+		local char = LocalPlayer.Character
+		if not char then continue end
+		for _, cart in ipairs(workspace:GetDescendants()) do
+			if cart:IsA("Model") and (cart.Name:find("Cart") or cart.Name == "ShoppingCart") then
+				for _, p in ipairs(cart:GetDescendants()) do
+					if p:IsA("BasePart") then
+						pcall(function()
+							p.CanCollide = false
+							p.CanTouch = false
+						end)
+					end
+				end
+			end
+		end
+	end
+end)
+
+-- Disable Entity JumpScares (Abysall: rename module)
+ExploitOtherBox:AddToggle("DisableEntityJumpscares", {
+	Text = "Disable Entity JumpScares",
+	Default = false,
+	Tooltip = "Vô hiệu hoá jumpscare entity",
+	Callback = function(Value)
+		pcall(function()
+			local folders = {
+				ReplicatedStorage:FindFirstChild("ClientModules"),
+				ReplicatedStorage:FindFirstChild("ModulesClient"),
+				ReplicatedStorage:FindFirstChild("Modules"),
+			}
+			for _, folder in ipairs(folders) do
+				if not folder then continue end
+				for _, name in ipairs({ "Jumpscare", "EntityJumpscare", "RushJumpscare", "AmbushJumpscare" }) do
+					local m = folder:FindFirstChild(name, true)
+					if m then
+						m.Name = Value and (name .. "_Disabled") or name:gsub("_Disabled", "")
+					end
+					local md = folder:FindFirstChild(name .. "_Disabled", true)
+					if md and not Value then md.Name = name end
+				end
+			end
+		end)
+	end,
+})
+
+-- Disable Firedamp Effect
+ExploitOtherBox:AddToggle("DisableFiredampEffect", {
+	Text = "Disable Firedamp Effect",
+	Default = false,
+	Tooltip = "Tắt hiệu ứng màn hình Firedamp",
+	Callback = function(Value)
+		pcall(function()
+			local pg = LocalPlayer:FindFirstChild("PlayerGui")
+			if pg then
+				for _, g in ipairs(pg:GetDescendants()) do
+					local n = string.lower(g.Name)
+					if n:find("firedamp") or n:find("fire_damp") then
+						if g:IsA("ScreenGui") or g:IsA("Frame") or g:IsA("ImageLabel") then
+							g.Enabled = not Value
+							if g:IsA("ImageLabel") or g:IsA("Frame") then
+								g.Visible = not Value
+							end
+						end
+					end
+				end
+			end
+			local cam = workspace.CurrentCamera
+			if cam then
+				for _, fx in ipairs(cam:GetChildren()) do
+					if string.lower(fx.Name):find("firedamp") then
+						fx.Enabled = not Value
+					end
+				end
+			end
+		end)
+	end,
 })
 local KillPlayerBox = SubExploit:AddRightGroupbox("Kill Player", "ban")
 KillPlayerBox:AddDropdown("KillPlayerTarget", {
