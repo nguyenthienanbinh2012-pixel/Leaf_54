@@ -2660,7 +2660,84 @@ task.defer(function()
 		end
 	end)
 end)
-
+local DeleteFigMineConn = nil
+MinesFloor:AddToggle("DeleteFigureMine", {
+	Text = "Delete Figure Mine",
+	Default = false,
+	Risky = true,
+	Tooltip = "Xoá Figure khỏi sever The Mine,Có thể thất bại",
+	Callback = function(Value)
+		if DeleteFigMineConn then task.cancel(DeleteFigMineConn) DeleteFigMineConn = nil end
+		if not Value then return end
+		DeleteFigMineConn = task.spawn(function()
+			local t0 = tick()
+			while Toggles.DeleteFigureMine and Toggles.DeleteFigureMine.Value do
+				local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+				local figs = LeafFindFigures(400, root, nil) -- mines: không whitelist hotel
+				-- ưu tiên workspace Figure
+				for _, n in ipairs({ "FigureRig", "FigureRagdoll", "Figure" }) do
+					local m = workspace:FindFirstChild(n)
+					if m then table.insert(figs, m) end
+				end
+				for _, fig in ipairs(figs) do
+					local part = fig.PrimaryPart or fig:FindFirstChild("HumanoidRootPart") or fig:FindFirstChildWhichIsA("BasePart")
+					if not part then continue end
+					if LeafHasNet(part) then
+						pcall(function()
+							part.Position = Vector3.new(-49999, -49999, -49999)
+						end)
+					else
+						pcall(function()
+							for _, p in ipairs(fig:GetDescendants()) do
+								if p:IsA("BasePart") then
+									p.CanCollide = false
+									p.AssemblyLinearVelocity = Vector3.zero
+									p.AssemblyAngularVelocity = Vector3.zero
+								end
+							end
+							local coll = fig:FindFirstChild("Collision", true)
+								or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("CollisionClone"))
+							if coll and coll:IsA("BasePart") then
+								coll.Size = Vector3.new(1, 1, 1)
+							end
+							for _, d in ipairs(fig:GetDescendants()) do
+								local ln = string.lower(d.Name)
+								if ln:find("trigger") then
+									if d:IsA("BasePart") then
+										d.CanTouch = false
+										d.CanCollide = false
+									end
+								end
+							end
+						end)
+					end
+				end
+				if tick() - t0 >= 5 then
+					local ok = false
+					for _, fig in ipairs(figs) do
+						local p = fig.PrimaryPart or fig:FindFirstChildWhichIsA("BasePart")
+						if p and p.Position.Y < -1000 then ok = true break end
+					end
+					if ok and Notify then Notify("Delete Figure Success!!", 4) end
+					t0 = tick()
+				end
+				task.wait(0.2)
+			end
+		end)
+	end,
+})
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.DeleteFigureMine
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(255,40,40)">Delete Figure Mine</font>'
+		end
+	end)
+end)
 -- Remove Kill Brick [FE]
 local RemoveKBConn = nil
 TargetBox:AddToggle("RemoveKillBrickFE", {
