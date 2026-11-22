@@ -575,7 +575,35 @@ local ReplicateSignal = replicatesignal or (typeof(replicatesignal) == "function
 local FireTouch = firetouchinterest
 local HookMeta = hookmetamethod
 local IsNetworkOwner = isnetworkowner
-Items = {
+local function LeafHasNet(part)
+	local ok = false
+	pcall(function()
+		if isnetworkowner and part and isnetworkowner(part) then ok = true end
+	end)
+	return ok
+end
+
+local function LeafFindFigures(maxDist, root, roomWhitelist)
+	local list = {}
+	if not root then return list end
+	local rooms = workspace:FindFirstChild("CurrentRooms")
+	if rooms then
+		for _, room in ipairs(rooms:GetChildren()) do
+			local n = tonumber(room.Name)
+			if roomWhitelist and (not n or not roomWhitelist[n]) then continue end
+			for _, name in ipairs({ "FigureRig", "FigureRagdoll", "Figure" }) do
+				local m = room:FindFirstChild(name, true)
+				if m then
+					local p = m.PrimaryPart or m:FindFirstChild("HumanoidRootPart") or m:FindFirstChildWhichIsA("BasePart")
+					if p and (not maxDist or (p.Position - root.Position).Magnitude <= maxDist) then
+						table.insert(list, m)
+					end
+				end
+			end
+		end
+	end
+	return list
+	end
 ["Bandage"] = "Bandage",
 ["Flashlight"] = "Flash light",
 ["Battery"] = "Battery",
@@ -1656,7 +1684,7 @@ ExploitOtherBox:AddToggle("SkipGateRooms", {
 					local rooms = workspace:FindFirstChild("CurrentRooms")
 					local roomNum = tonumber(LocalPlayer:GetAttribute("CurrentRoom"))
 					local room = rooms and roomNum and rooms:FindFirstChild(tostring(roomNum))
-					if room and not skipped[roomNum] and roomNum \~= 100 then
+					if room and not skipped[roomNum] and roomNum ~= 100 then
 						local isGate = room:FindFirstChild("LeverForGate", true)
 							or room:FindFirstChild("Gate", true)
 							or room:FindFirstChild("ThingToOpen", true)
@@ -3001,6 +3029,124 @@ end
 end
 end
 })
+local DeleteFigFoolsConn = nil
+FoolsFloor:AddToggle("DeleteFigureFools", {
+	Text = "Delete Figure Fools",
+	Default = false,
+	Tooltip = "Cố Gắng Kill Figure Void và Trigger,có thể thất bại",
+	Callback = function(Value)
+		if DeleteFigFoolsConn then
+			if typeof(DeleteFigFoolsConn) == "RBXScriptConnection" then
+				DeleteFigFoolsConn:Disconnect()
+			else
+				task.cancel(DeleteFigFoolsConn)
+			end
+			DeleteFigFoolsConn = nil
+		end
+		if not Value then return end
+		local allow = { [50] = true, [100] = true }
+		local tMark = tick()
+		DeleteFigFoolsConn = task.spawn(function()
+			while Toggles.DeleteFigureFools and Toggles.DeleteFigureFools.Value do
+				local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+				if not root then task.wait(0.3) continue end
+				local figs = LeafFindFigures(300, root, allow)
+				for _, fig in ipairs(figs) do
+					-- không bắt buộc net: luôn tắt collide + thu size
+					pcall(function()
+						for _, p in ipairs(fig:GetDescendants()) do
+							if p:IsA("BasePart") then
+								p.CanCollide = false
+								p.CanTouch = false
+							end
+						end
+						local coll = fig:FindFirstChild("Collision", true) or fig:FindFirstChild("Hitbox", true)
+						if coll and coll:IsA("BasePart") then
+							coll.Size = Vector3.new(1, 1, 1)
+						end
+					end)
+					local part = fig.PrimaryPart or fig:FindFirstChildWhichIsA("BasePart")
+					-- khi CÓ net: spam random position
+					task.spawn(function()
+						local guard = 0
+						while Toggles.DeleteFigureFools and Toggles.DeleteFigureFools.Value and part and part.Parent and guard < 200 do
+							if LeafHasNet(part) then
+								pcall(function()
+									part.Position = Vector3.new(
+										math.random(-29999, 29999),
+										math.random(-29999, 29999),
+										math.random(-29999, 29999)
+									)
+								end)
+							else
+								break
+							end
+							guard += 1
+							task.wait()
+						end
+					end)
+				end
+
+				-- Bước 2 song song: vô hiệu trigger + neo part gần figure
+				local rooms = workspace:FindFirstChild("CurrentRooms")
+				if rooms then
+					for _, rn in ipairs({ "50", "100" }) do
+						local room = rooms:FindFirstChild(rn)
+						if room then
+							for _, d in ipairs(room:GetDescendants()) do
+								local n = string.lower(d.Name)
+								if n:find("trigger") or n:find("figure") and (n:find("hit") or n:find("kill") or n:find("collision")) then
+									pcall(function()
+										if d:IsA("BasePart") then
+											d.CanTouch = false
+											d.CanCollide = false
+										elseif d:IsA("ProximityPrompt") then
+											d.Enabled = false
+										end
+									end)
+								end
+							end
+						end
+					end
+				end
+				for _, fig in ipairs(figs) do
+					local fp = fig.PrimaryPart or fig:FindFirstChildWhichIsA("BasePart")
+					if not fp or not root then continue end
+					if (fp.Position - root.Position).Magnitude > 200 then continue end
+					local best, bd = nil, 30
+					local room = fp:FindFirstAncestorOfClass("Model")
+					local scope = room and room.Parent or workspace
+					for _, p in ipairs(scope:GetDescendants()) do
+						if p:IsA("BasePart") and not p:IsDescendantOf(fig) then
+							local d = (p.Position - fp.Position).Magnitude
+							if d < bd then best, bd = p, d end
+						end
+					end
+					if best then
+						pcall(function()
+							best.Anchored = true
+							best.CFrame = fp.CFrame
+						end)
+					end
+				end
+
+				if tick() - tMark >= 3 then
+					local still = false
+					for _, fig in ipairs(figs) do
+						local p = fig.PrimaryPart or fig:FindFirstChildWhichIsA("BasePart")
+						if p and root and (p.Position - root.Position).Magnitude < 100 then
+							still = true
+							break
+						end
+					end
+					if still and Notify then Notify("Delete Figure Fools: thất bại!", 3) end
+					tMark = tick()
+				end
+				task.wait(0.25)
+			end
+		end)
+	end,
+})
 RetroFloor:AddToggle('AntiWall',{
 Text = "Anti SeekWall",
 Default = false,
@@ -3133,6 +3279,85 @@ end
 end
 end
 })
+MinesFloor:AddButton({
+	Text = "Complete Dam Seek",
+	Func = function()
+		pcall(function()
+			local rooms = workspace:FindFirstChild("CurrentRooms")
+			if not rooms then return end
+			for _, v in ipairs(rooms:GetDescendants()) do
+				if v.Name == "TriggerEventCollision" or v.Name:find("Seek") then
+					local coll = v:FindFirstChild("Collision")
+					local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+					if coll and root and (FireTouch or firetouchinterest) then
+						local ft = FireTouch or firetouchinterest
+						ft(root, coll, 0)
+						task.wait()
+						ft(root, coll, 1)
+					end
+				end
+			end
+			if Notify then Notify("Complete Dam Seek fired", 3) end
+		end)
+	end,
+})
+
+MinesFloor:AddToggle("TeleportMinecraft", {
+	Text = "Teleport Minecraft",
+	Default = false,
+	Risky = true,
+	Tooltip = "Tự động dịch chuyển đến đích khi ngồi trên xe Minecraft,Có thể gây Chết,Mất xe",
+	Callback = function(Value)
+		if not Value then return end
+		task.spawn(function()
+			task.wait(1)
+			pcall(function()
+				local rooms = workspace:FindFirstChild("CurrentRooms")
+				for _, d in ipairs((rooms or workspace):GetDescendants()) do
+					if d.Name:find("Minecraft") or d.Name:find("Minecart") and d.Name:find("End") then
+						local p = d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
+						local char = LocalPlayer.Character
+						if p and char then
+							char:PivotTo(p.CFrame * CFrame.new(0, 3, 0))
+							break
+						end
+					end
+				end
+			end)
+		end)
+	end,
+})
+task.defer(function()
+	task.wait(0.35)
+	pcall(function()
+		local t = Toggles.TeleportMinecraft
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(255,40,40)">Teleport Minecraft</font>'
+		end
+	end)
+end)
+
+MinesFloor:AddToggle("AntiPipeGap", {
+	Text = "Anti Pipe-Gap",
+	Default = false,
+	Tooltip = "Chống Kill Brick ở khe hở ống",
+	Callback = function(Value)
+		pcall(function()
+			for _, d in ipairs(workspace:GetDescendants()) do
+				local n = string.lower(d.Name)
+				if n:find("pipe") or n:find("gap") then
+					if d:IsA("BasePart") then
+						d.CanTouch = not Value
+						if Value then d.CanCollide = true end
+					end
+				end
+			end
+		end)
+	end,
+})
 RoomsFloor:AddToggle('AutoRooms',{
 Text = "Auto A-1000",
 Default = false,
@@ -3264,7 +3489,7 @@ PlayerBox:AddDivider()
 local OldAccel
 PlayerBox:AddToggle('NoAcc',{
 Text = "No Acceleration ",
-Tooltip = "Giúp nhân vật bỏ Qua ma sát Roblox"
+Tooltip = "Giúp nhân vật bỏ Qua ma sát Roblox",
 Default = false,
 Callback = function(Value)
 if Value then
@@ -3441,6 +3666,18 @@ end
 end))
 end
 end
+PlayerBox:AddToggle("EnableJumpPower", {
+	Text = "JumpPower",
+	Default = false,
+	Tooltip = "Cho phép nhân vật nhảy mạnh hơn",
+})
+PlayerBox:AddSlider("JumpPowerValue", {
+	Text = "Jump Power",
+	Default = 5,
+	Min = 0,
+	Max = 50,
+	Rounding = 0,
+})
 PlayerBox:AddToggle('Godmode',{
 	Text = "Position Spoof",
 	Default = false,
@@ -3739,18 +3976,134 @@ end
 label:GetPropertyChangedSignal("Text"):Connect(run)
 run()
 end
-AutoBox:AddToggle('AutoBreaker',{
-Text = "Auto Breaker Minigame",
-Default = false,
-Callback = function(Value)
-if Value then
-for _, v in pairs(workspace.CurrentRooms:GetDescendants()) do
-if v.Name == "ElevatorBreaker" then
-Breaker(v)
-end
-end
-end
-end
+AutoBox:AddDropdown("BreakerMode", {
+	Text = "Breaker Mode",
+	Values = { "Legit", "Exploit" },
+	Default = "Legit",
+})
+
+AutoBox:AddToggle("AutoBreaker", {
+	Text = "Auto Breaker Box",
+	Default = false,
+	Tooltip = "Hoàn thành hộp cầu chì theo Methods:Hợp lệ:Khai thác Hian lận",
+	Callback = function(Value)
+		if not Value then return end
+		task.spawn(function()
+			local cachedBreaker, lastSeenCode = nil, nil
+			local roundSeen, tracked = {}, {}
+			while Toggles.AutoBreaker and Toggles.AutoBreaker.Value do
+				local mode = Options.BreakerMode and Options.BreakerMode.Value or "Legit"
+				local rooms = workspace:FindFirstChild("CurrentRooms")
+				local roomNum = tonumber(LocalPlayer:GetAttribute("CurrentRoom"))
+				if not rooms or (roomNum ~= 50 and roomNum ~= 100) then
+					task.wait(0.5)
+					continue
+				end
+				local room = rooms:FindFirstChild(tostring(roomNum))
+				if not cachedBreaker or not cachedBreaker.Parent then
+					cachedBreaker = room and room:FindFirstChild("ElevatorBreaker", true)
+				end
+				if mode == "Exploit" and cachedBreaker then
+					Breaker(cachedBreaker)
+					task.wait(0.15)
+					continue
+				end
+				-- LEGIT: SurfaceGui Code
+				if cachedBreaker then
+					local gui = cachedBreaker:FindFirstChildWhichIsA("SurfaceGui", true)
+					local codeLabel = gui and (gui:FindFirstChild("Code", true) or gui:FindFirstChild("TextLabel", true))
+					local currentText = codeLabel and (codeLabel.Text or codeLabel:FindFirstChild("Text") and codeLabel.Text)
+					if typeof(currentText) == "string" and currentText \~= lastSeenCode then
+						lastSeenCode = currentText
+						local num = tonumber(currentText)
+						if num and num >= 1 and num <= 10 then
+							roundSeen[num] = true
+							tracked[num] = true
+							-- bật switch ID = num (FireServer + local visual)
+							pcall(function()
+								for _, sw in ipairs(cachedBreaker:GetDescendants()) do
+									if sw.Name == "BreakerSwitch" and sw:GetAttribute("ID") == num then
+										local re = sw:FindFirstChildWhichIsA("RemoteEvent", true)
+										if re then re:FireServer(num, true) end
+										local cd = sw:FindFirstChildWhichIsA("ClickDetector", true)
+										if cd and fireclickdetector then fireclickdetector(cd) end
+										local pr = sw:FindFirstChildWhichIsA("ProximityPrompt", true)
+										if pr and (Firepp or fireproximityprompt) then
+											(Firepp or fireproximityprompt)(pr)
+										end
+									end
+								end
+							end)
+						elseif currentText:find("??") then
+							for i = 1, 10 do
+								if not roundSeen[i] then
+									-- missingNumber = i
+									pcall(function()
+										for _, sw in ipairs(cachedBreaker:GetDescendants()) do
+											if sw.Name == "BreakerSwitch" and sw:GetAttribute("ID") == i then
+												local re = sw:FindFirstChildWhichIsA("RemoteEvent", true)
+												if re then re:FireServer(i, true) end
+											end
+										end
+									end)
+									break
+								end
+							end
+						elseif currentText:find("POWER ON") or currentText == "..." then
+							table.clear(roundSeen)
+							table.clear(tracked)
+						end
+					end
+				end
+				task.wait(0.08)
+			end
+		end)
+	end,
+})
+local AutoElevConn = nil
+AutoBox:AddToggle("AutoElevatorBreaker", {
+	Text = "Auto Elevator Breaker",
+	Default = false,
+	Tooltip = "Tự động lên thang máy khi Làm hộp Cầu chỉ-Hỗ Trợ Đến thang máy nhanh hơn",
+	Callback = function(Value)
+		if AutoElevConn then task.cancel(AutoElevConn) AutoElevConn = nil end
+		if not Value then return end
+		AutoElevConn = task.spawn(function()
+			if not (Toggles.AutoBreaker and Toggles.AutoBreaker.Value) then
+				if Notify then Notify("Bật Auto Breaker Box trước!", 3) end
+				Toggles.AutoElevatorBreaker:SetValue(false)
+				return
+			end
+			local savedDmg = Toggles.AutoDamageFigure and Toggles.AutoDamageFigure.Value
+			if savedDmg then Toggles.AutoDamageFigure:SetValue(false) end
+			local tries = 0
+			while Toggles.AutoElevatorBreaker and Toggles.AutoElevatorBreaker.Value and tries < 15 do
+				local rooms = workspace:FindFirstChild("CurrentRooms")
+				local roomNum = tonumber(LocalPlayer:GetAttribute("CurrentRoom"))
+				local room = rooms and rooms:FindFirstChild(tostring(roomNum or 100))
+				local elev = room and (room:FindFirstChild("Elevator", true) or room:FindFirstChild("ElevatorDoor", true))
+				local part = elev and (elev:IsA("BasePart") and elev or elev:FindFirstChildWhichIsA("BasePart"))
+				local char = LocalPlayer.Character
+				if part and char then
+					char:PivotTo(part.CFrame * CFrame.new(0, 2, 0))
+					local r = char:FindFirstChild("HumanoidRootPart")
+					if r and (r.Position - part.Position).Magnitude < 10 then
+						if Notify then Notify("Auto Elevator: đã lên!", 3) end
+						break
+					end
+				end
+				tries += 1
+				task.wait(0.12)
+			end
+			if tries >= 15 and Notify then
+				Notify("Auto Elevator Breaker: thất bại!", 4)
+				Toggles.AutoElevatorBreaker:SetValue(false)
+			end
+			if savedDmg and Toggles.AutoDamageFigure then
+				Toggles.AutoDamageFigure:SetValue(true)
+			end
+		end)
+	end,
 })
 local OldFogEnd
 LightingBox:AddToggle('NoFog',{
@@ -5557,6 +5910,23 @@ end
 end
 end
 })
+HotelFloor:AddButton({
+	Text = "Complete Cringle",
+	Func = function()
+		pcall(function()
+			-- Workshop / cringle objectives: fire prompts + doors
+			local fire = Firepp or fireproximityprompt
+			for _, d in ipairs(workspace:GetDescendants()) do
+				if string.lower(d.Name):find("cringle") or d.Name:find("Workshop") then
+					for _, pr in ipairs(d:GetDescendants()) do
+						if pr:IsA("ProximityPrompt") and fire then pcall(fire, pr) end
+					end
+				end
+			end
+			if Notify then Notify("Complete Cringle fired", 3) end
+		end)
+	end,
+})
 -- ===== Auto Hotel (Abysall-style) =====
 local AutoHotelConnection, AutoHotelSeekConnection = nil, nil
 local AutoHotelEntityNames = {
@@ -6100,6 +6470,294 @@ HotelFloor:AddToggle("AutoCompleteElectrical", {
 		end)
 	end,
 })
+local DeleteFigHotelConn = nil
+HotelFloor:AddToggle("DeleteFigureHotels", {
+	Text = "Delete Figure Hotels",
+	Default = false,
+	Tooltip = "Cố gắng kill Figure Void và Vô hiệu hoá Hitbox,Có thể thất bại Cao",
+	Callback = function(Value)
+		if DeleteFigHotelConn then task.cancel(DeleteFigHotelConn) DeleteFigHotelConn = nil end
+		if not Value then return end
+		local allow = { [49] = true, [50] = true, [51] = true, [99] = true, [100] = true }
+		DeleteFigHotelConn = task.spawn(function()
+			while Toggles.DeleteFigureHotels and Toggles.DeleteFigureHotels.Value do
+				local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+				if root then
+					for _, fig in ipairs(LeafFindFigures(250, root, allow)) do
+						local part = fig.PrimaryPart or fig:FindFirstChild("HumanoidRootPart") or fig:FindFirstChildWhichIsA("BasePart")
+						if not part then continue end
+						if LeafHasNet(part) then
+							pcall(function()
+								part.Position = Vector3.new(-49999, -49999, -49999)
+							end)
+						else
+							pcall(function()
+								for _, p in ipairs(fig:GetDescendants()) do
+									if p:IsA("BasePart") then
+										p.CanCollide = false
+										p.CanTouch = false
+									end
+								end
+								local coll = fig:FindFirstChild("Collision", true) or fig:FindFirstChild("Hitbox", true)
+								if coll and coll:IsA("BasePart") then
+									coll.Size = Vector3.new(1, 1, 1)
+								end
+							end)
+						end
+					end
+				end
+				task.wait(0.35) -- quét nhẹ
+			end
+		end)
+	end,
+})
+task.defer(function()
+	task.wait(0.35)
+	pcall(function()
+		local t = Toggles.DeleteFigureHotels
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then lbl.TextSize = math.max(10, (lbl.TextSize or 14) - 1) end
+	end)
+end)
+local AutoDmgFigConn = nil
+HotelFloor:AddToggle("AutoDamageFigure", {
+	Text = "Auto Damage Figure",
+	Default = false,
+	Risky = true,
+	Tooltip = "Chủ động Đập Figure nếu có cơ Hội, Yêu cầu Networks OwnerShip Luôn có!",
+	Callback = function(Value)
+		if AutoDmgFigConn then task.cancel(AutoDmgFigConn) AutoDmgFigConn = nil end
+		if not Value then return end
+
+		-- tạm tắt GodModeFigure / Delete Figure*
+		local saved = {}
+		local function pauseRelated(on)
+			for _, name in ipairs({
+				"GodModeFigure", "DeleteFigureHotels", "DeleteFigureFools",
+				"DeleteFigureMine", "DeleteFigureFE",
+			}) do
+				local t = Toggles[name]
+				if t then
+					if on then
+						saved[name] = t.Value
+						if t.Value then t:SetValue(false) end
+					else
+						if saved[name] then t:SetValue(true) end
+					end
+				end
+			end
+		end
+		pauseRelated(true)
+
+		AutoDmgFigConn = task.spawn(function()
+			local function getRoot()
+				local c = LocalPlayer.Character
+				local h = c and c:FindFirstChildOfClass("Humanoid")
+				if c and h and h.Health > 0 then
+					return c:FindFirstChild("HumanoidRootPart"), c
+				end
+				return nil, nil
+			end
+			local function findFigure()
+				local root = getRoot()
+				if not root then return nil end
+				local allow = { [49] = true, [50] = true, [51] = true, [99] = true, [100] = true }
+				local list = LeafFindFigures and LeafFindFigures(400, root, nil) or {}
+				for _, n in ipairs({ "FigureRig", "FigureRagdoll", "Figure" }) do
+					local m = workspace:FindFirstChild(n)
+					if m then table.insert(list, m) end
+				end
+				return list[1]
+			end
+			local function getFigPart(fig)
+				return fig and (fig.PrimaryPart or fig:FindFirstChild("HumanoidRootPart") or fig:FindFirstChildWhichIsA("BasePart"))
+			end
+
+			local fig = findFigure()
+			if not fig then
+				if Notify then Notify("Auto Damage Figure: không có Figure — dừng", 3) end
+				pauseRelated(false)
+				if Toggles.AutoDamageFigure then Toggles.AutoDamageFigure:SetValue(false) end
+				return
+			end
+
+			local fire = Firepp or fireproximityprompt
+			local roomNum = tonumber(LocalPlayer:GetAttribute("CurrentRoom")) or 0
+
+			-- Phòng 49–50: tìm Clock
+			if roomNum == 49 or roomNum == 50 then
+				local rooms = workspace:FindFirstChild("CurrentRooms")
+				local room = rooms and rooms:FindFirstChild(tostring(roomNum))
+				local hasClock = LocalPlayer.Backpack:FindFirstChild("AlarmClock")
+					or LocalPlayer.Backpack:FindFirstChild("Clock")
+					or (LocalPlayer.Character and (LocalPlayer.Character:FindFirstChild("AlarmClock") or LocalPlayer.Character:FindFirstChild("Clock")))
+				if not hasClock and room then
+					for _, d in ipairs(room:GetDescendants()) do
+						local n = string.lower(d.Name)
+						if n:find("clock") or n:find("alarm") then
+							local part = d:IsA("BasePart") and d or d:FindFirstChildWhichIsA("BasePart")
+							local pr = d:FindFirstChildWhichIsA("ProximityPrompt", true)
+							local _, char = getRoot()
+							if part and char then
+								char:PivotTo(part.CFrame * CFrame.new(0, 2, 0))
+								task.wait(0.15)
+								if pr and fire then pcall(fire, pr) end
+							end
+						end
+					end
+					task.wait(0.4)
+				end
+				-- có clock + đang 49 → TP room 50
+				hasClock = LocalPlayer.Backpack:FindFirstChild("AlarmClock")
+					or LocalPlayer.Backpack:FindFirstChild("Clock")
+					or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("AlarmClock"))
+				if hasClock and roomNum == 49 then
+					local rooms = workspace:FindFirstChild("CurrentRooms")
+					local r50 = rooms and rooms:FindFirstChild("50")
+					local door = r50 and r50:FindFirstChild("Door")
+					local _, char = getRoot()
+					if door and char then
+						char:PivotTo(door:GetPivot() * CFrame.new(0, 1, 2))
+						for _, pr in ipairs(door:GetDescendants()) do
+							if pr:IsA("ProximityPrompt") and fire then pcall(fire, pr) end
+						end
+					end
+					task.wait(0.5)
+				end
+			end
+
+			-- Bay trên đầu Figure 3–5 studs + dùng / drop clock
+			local flyConn
+			local done = false
+			flyConn = RunService.Heartbeat:Connect(function()
+				if done or not (Toggles.AutoDamageFigure and Toggles.AutoDamageFigure.Value) then
+					if flyConn then flyConn:Disconnect() end
+					return
+				end
+				local root, char = getRoot()
+				fig = findFigure()
+				local fp = getFigPart(fig)
+				if not root or not char or not fp then return end
+				local off = 3 + (tick() % 2) -- 3–5
+				char:PivotTo(CFrame.new(fp.Position + Vector3.new(0, off, 0)))
+				root.AssemblyLinearVelocity = Vector3.zero
+
+				local clock = LocalPlayer.Backpack:FindFirstChild("AlarmClock")
+					or LocalPlayer.Backpack:FindFirstChild("Clock")
+					or char:FindFirstChild("AlarmClock")
+					or char:FindFirstChild("Clock")
+				if clock and clock:IsA("Tool") then
+					pcall(function()
+						local hum = char:FindFirstChildOfClass("Humanoid")
+						if hum then hum:EquipTool(clock) end
+						clock:Activate()
+					end)
+					task.defer(function()
+						-- nếu còn trong kho → drop; bring dưới chân (trên figure 2 studs từ offset)
+						task.wait(0.2)
+						local drop = workspace:FindFirstChild("AlarmClock") or workspace:FindFirstChild("Clock")
+						if not drop then
+							pcall(function()
+								if RemotesFolder and RemotesFolder:FindFirstChild("DropItem") then
+									RemotesFolder.DropItem:FireServer()
+								end
+							end)
+						end
+					end)
+				end
+				-- bring clock dropped dưới chân player (cao hơn figure \~2)
+				for _, d in ipairs(workspace:GetChildren()) do
+					if d.Name == "AlarmClock" or d.Name == "Clock" then
+						local p = d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
+						if p then
+							pcall(function()
+								p.CFrame = CFrame.new(fp.Position + Vector3.new(0, 2, 0))
+							end)
+						end
+					end
+				end
+			end)
+
+			task.wait(2)
+			local part = getFigPart(findFigure())
+			local hasNet = part and LeafHasNet and LeafHasNet(part)
+
+			if hasNet and part then
+				-- raycast đất, bay 20 studs từ đất, void figure
+				local root, char = getRoot()
+				if root and char then
+					local rp = RaycastParams.new()
+					rp.FilterType = Enum.RaycastFilterType.Exclude
+					rp.FilterDescendantsInstances = { char, findFigure() }
+					local hit = workspace:Raycast(root.Position, Vector3.new(0, -50, 0), rp)
+					local groundY = hit and hit.Position.Y or (root.Position.Y - 5)
+					char:PivotTo(CFrame.new(root.Position.X, groundY + 20, root.Position.Z))
+				end
+				pcall(function()
+					part.Position = Vector3.new(-49999, -49999, -49999)
+				end)
+				task.wait(5)
+				local p2 = getFigPart(findFigure())
+				if p2 and p2.Position.Y < -1000 then
+					if Notify then Notify("Damage Figure Success!", 4) end
+				else
+					if Notify then Notify("Damage Figure: void chưa đủ", 3) end
+				end
+			else
+				-- chờ net 15s
+				local t0 = tick()
+				while tick() - t0 < 15 and Toggles.AutoDamageFigure and Toggles.AutoDamageFigure.Value do
+					part = getFigPart(findFigure())
+					if part and LeafHasNet and LeafHasNet(part) then
+						pcall(function()
+							part.Position = Vector3.new(-49999, -49999, -49999)
+						end)
+						task.wait(5)
+						if Notify then Notify("Damage Figure Success!", 4) end
+						done = true
+						break
+					end
+					task.wait(0.3)
+				end
+				if not done then
+					-- pivot ra xa 120 studs + đất
+					local root, char = getRoot()
+					local fp = getFigPart(findFigure())
+					if root and char and fp then
+						local dir = (root.Position - fp.Position)
+						if dir.Magnitude < 1 then dir = Vector3.new(1, 0, 0) end
+						dir = dir.Unit * 120
+						local target = fp.Position + dir
+						local rp = RaycastParams.new()
+						rp.FilterDescendantsInstances = { char }
+						local hit = workspace:Raycast(target + Vector3.new(0, 30, 0), Vector3.new(0, -80, 0), rp)
+						local y = hit and hit.Position.Y + 3 or target.Y
+						char:PivotTo(CFrame.new(target.X, y, target.Z))
+					end
+					if Notify then Notify("Auto Damage Figure: thất bại (no network 15s)", 4) end
+					if Toggles.AutoDamageFigure then Toggles.AutoDamageFigure:SetValue(false) end
+				end
+			end
+
+			done = true
+			if flyConn then flyConn:Disconnect() end
+			pauseRelated(false) -- khôi phục GodMode / Delete Figure
+		end)
+	end,
+})
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.AutoDamageFigure
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(255,40,40)">Auto Damage Figure</font>'
+		end
+	end)
+end)
 BypassEntityBox:AddToggle('FigureHearing',{
 Text = "Anti Figure Hearing",
 Default = false,
