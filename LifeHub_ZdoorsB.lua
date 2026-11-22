@@ -1689,6 +1689,7 @@ task.defer(function()
 		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
 		if lbl then lbl.TextSize = math.max(10, (lbl.TextSize or 14) - 2) end
 	end)
+end)
 local RemoveSnareConn, RemoveEyesConn = nil, nil
 
 TargetBox:AddToggle("RemoveSnare", {
@@ -2469,12 +2470,12 @@ BypassBox:AddButton({
 		local char = LocalPlayer.Character
 		if not char then return end
 		local pivot = char:GetPivot()
-		-- Abysall: Pivot + Vector3 Y âm
+		-- Pivot + Vector3 Y âm
 		char:PivotTo(pivot + Vector3.new(0, -120, 0))
 	end,
 })
 
--- helpers Next Door (Abysall getNextClosedDoor)
+-- helpers Next Door
 local function getNextClosedDoor()
 	local char = LocalPlayer.Character
 	if not char then return nil end
@@ -2828,7 +2829,7 @@ Values = {
 "PatrickHand", "PermanentMarker", "Roboto", "RobotoCondensed",
 "RobotoMono", "Sarpanch", "SpecialElite", "TitilliumWeb", "Ubuntu"
 },
-Default = "Legacy",
+Default = "Cartoon",
 Multi = false,
 Callback = function(Value)
 ESPLibrary:SetFont(Value)
@@ -2871,7 +2872,7 @@ end,
 Tooltip = "Climbing Speed",
 })
 PlayerBox:AddToggle('EnableClimbingSpeed',{
-Text = "Tăng tốc độ leo",
+Text = "Climbing Speed",
 Default = false,
 Callback = function(Value)
 if not Value then
@@ -2882,7 +2883,8 @@ end
 PlayerBox:AddDivider()
 local OldAccel
 PlayerBox:AddToggle('NoAcc',{
-Text = "Bỏ qua Delay Trượt",
+Text = "No Acceleration ",
+Tooltip = "Giúp nhân vật bỏ Qua ma sát Roblox"
 Default = false,
 Callback = function(Value)
 if Value then
@@ -2947,12 +2949,12 @@ Rounding = 1,
 Compact = false,
 Callback = function(Value)
 end,
-Tooltip = "Flight Speed",
+Tooltip = "Tốc độ bay của nhân vật",
 })
 PlayerBox:AddToggle('EnableJump',{
 Text = "Enable Jumping",
 Default = false,
-Tooltip = "You Can Move Jump",
+Tooltip = "Cho phép nhân vật nhảy",
 Callback = function(Value)
 if not Value then
 LocalPlayer.Character:SetAttribute("CanJump",false)
@@ -2962,7 +2964,7 @@ end
 PlayerBox:AddToggle('InstaInteract',{
 Text = "Instant Interact",
 Default = false,
-Tooltip = "Interactions are Instantly",
+Tooltip = "Giúp tương tác Roblox Ngay lập tức",
 Callback = function(Value)
 if Value then
 for _, v in ipairs(workspace:GetDescendants()) do
@@ -3303,7 +3305,7 @@ AutoBox:AddToggle("FarmGlitchCube", {
 		if Notify then Notify("Farm Glitch: ĐÃ DỪNG", 3) end
 		return
 	end
-	if Notify then Notify("Farm Glitch: BẬT (kéo phải + no collide)", 3) end
+	if Notify then Notify("Farm Glitch: Bắt Đầu Farm", 3) end
 end,
 })
 AutoBox:AddDivider()
@@ -4552,7 +4554,7 @@ end,
 })
 CameraBox:AddSlider("X", {
 Text = "X",
-Default = 2,
+Default = 0,
 Min = -10,
 Max = 10,
 Rounding = 1,
@@ -4574,7 +4576,7 @@ Tooltip = "Y",
 })
 CameraBox:AddSlider("Z", {
 Text = "Z",
-Default = 4,
+Default = 7,
 Min = -10,
 Max = 15,
 Rounding = 1,
@@ -4585,6 +4587,7 @@ Tooltip = "Z",
 })
 CameraBox:AddToggle('NoCamShake',{
 Text = "No Camera Shake",
+Tooltip = "giúp nhân vật bỏ qua Rung lắc của Thực thể"
 Disabled = not require and true or false,
 })
 local OldMinZoom = LocalPlayer.CameraMinZoomDistance
