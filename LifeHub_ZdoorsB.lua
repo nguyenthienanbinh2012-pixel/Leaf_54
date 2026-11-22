@@ -1886,6 +1886,75 @@ TargetBox:AddToggle("DeleteJeffFE", {
 	end,
 })
 task.defer(function()
+	local DeleteJeffClientConn = nil
+TargetBox:AddToggle("DeleteJeffClient", {
+	Text = "Delete Jeff [Client]",
+	Default = false,
+	Tooltip = "Cố gắng xoá jeff bên Client,Có tỉ lệ cao không hoạt động có thể gây Jeff kill",
+	Callback = function(Value)
+		if DeleteJeffClientConn then
+			task.cancel(DeleteJeffClientConn)
+			DeleteJeffClientConn = nil
+		end
+		if not Value then return end
+		DeleteJeffClientConn = task.spawn(function()
+			while Toggles.DeleteJeffClient and Toggles.DeleteJeffClient.Value do
+				local jeff = workspace:FindFirstChild("JeffTheKiller")
+				if not jeff then
+					for _, c in ipairs(workspace:GetChildren()) do
+						if typeof(c.Name) == "string" and string.lower(c.Name):find("jeff") then
+							jeff = c
+							break
+						end
+					end
+				end
+				if not jeff then
+					task.wait(0.35)
+					continue
+				end
+
+				pcall(function()
+					for _, p in ipairs(jeff:GetDescendants()) do
+						if p:IsA("BasePart") then
+							p.CanCollide = false
+							p.CanTouch = false
+							p.AssemblyLinearVelocity = Vector3.zero
+							p.AssemblyAngularVelocity = Vector3.zero
+						end
+					end
+					local hum = jeff:FindFirstChildOfClass("Humanoid")
+					if hum then
+						pcall(function() hum:BreakJoints() end)
+						hum.MaxHealth = 0
+						hum.Health = 0
+						pcall(function() hum:TakeDamage(999) end)
+						hum.PlatformStand = true
+					end
+					local hrp = jeff:FindFirstChild("HumanoidRootPart") or jeff.PrimaryPart or jeff:FindFirstChildWhichIsA("BasePart")
+					if hrp then
+						local cf = CFrame.new(hrp.Position.X, -49999, hrp.Position.Z)
+						if jeff.PivotTo then
+							jeff:PivotTo(cf)
+						else
+							hrp.CFrame = cf
+						end
+						hrp.Anchored = true
+						hrp.AssemblyLinearVelocity = Vector3.zero
+						hrp.AssemblyAngularVelocity = Vector3.zero
+					end
+				end)
+
+				task.wait(1.5)
+				local p = jeff.PrimaryPart or jeff:FindFirstChildWhichIsA("BasePart")
+				if p and p.Position.Y < -50 then
+					if Notify then Notify("Delete Jeff Client Success!", 4) end
+					break
+				end
+				task.wait(0.25)
+			end
+		end)
+	end,
+})
 	task.wait(0.4)
 	pcall(function()
 		local t = Toggles.DeleteJeffFE
