@@ -441,6 +441,11 @@ local Window = Library:CreateWindow({
 	Title = LibraryName,
 	Center = true,
 	ToggleKeybind = Enum.KeyCode.RightControl,
+	AutoShow = true,
+	NotifySide = "Right",
+	ShowCustomCursor = true,
+	Footer = "https://discord.gg/3eHTX99Zz  | Leaf-Hub",
+	CornerRadius = 12,
 	Animations = LEAF_GAMING and {
 		ToggleWindow = true,
 		TabSwitch = true,
@@ -454,12 +459,6 @@ local Window = Library:CreateWindow({
 		Dropdown = false,
 		KeyPicker = false,
 	},
-})
-AutoShow = true,
-NotifySide = "Right",
-ShowCustomCursor = true,
-Footer = "https://discord.gg/3eHTX99Zz.  |Leaf-Hub✅",
-CornerRadius = 12,
 })
 Window.MainFrame.Size = UDim2.fromOffset(690, 300)
 Window:SetSidebarWidth(165)
@@ -995,7 +994,8 @@ local function LeafFindFigures(maxDist, root, roomWhitelist)
 		end
 	end
 	return list
-	end
+end
+local ItemDisplayNames = {
 ["Bandage"] = "Bandage",
 ["Flashlight"] = "Flash light",
 ["Battery"] = "Battery",
@@ -4405,7 +4405,7 @@ AutoBox:AddToggle("AutoBreaker", {
 					local gui = cachedBreaker:FindFirstChildWhichIsA("SurfaceGui", true)
 					local codeLabel = gui and (gui:FindFirstChild("Code", true) or gui:FindFirstChild("TextLabel", true))
 					local currentText = codeLabel and (codeLabel.Text or codeLabel:FindFirstChild("Text") and codeLabel.Text)
-					if typeof(currentText) == "string" and currentText \~= lastSeenCode then
+					if typeof(currentText) == "string" and currentText ~= lastSeenCode then
 						lastSeenCode = currentText
 						local num = tonumber(currentText)
 						if num and num >= 1 and num <= 10 then
