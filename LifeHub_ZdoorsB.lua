@@ -50,10 +50,32 @@ local LibraryName = '🌿 Leaf Hub'
 repeat task.wait() until LocalPlayer.Character
 getgenv().ScriptLibrary = "Obsidian"
 local repo = 'https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/'
-local Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
-task.wait()
-Library.Scheme.AccentColor = Color3.fromRGB(27, 255, 20)
-if Library.UpdateColors then Library:UpdateColors() end
+-- ===== Gaming Menu Mode (boot) — TRƯỚC CreateWindow =====
+local LEAF_GAMING = getgenv().LeafGamingMenuMode == true
+
+if LEAF_GAMING then
+	Library.ForceCheckbox = true
+	Library.Animations = {
+		ToggleWindow = true,
+		TabSwitch = true,
+		Groupbox = true,
+		Dropdown = true,
+		KeyPicker = true,
+	}
+	pcall(function()
+		Library.Scheme.Font = Font.fromEnum(Enum.Font.GothamMedium)
+	end)
+	Library.Scheme.AccentColor = Color3.fromRGB(0, 180, 255)
+else
+	Library.ForceCheckbox = false
+	Library.Scheme.AccentColor = Color3.fromRGB(27, 255, 20)
+end
+if Library.UpdateColorsUsingRegistry then
+	Library:UpdateColorsUsingRegistry()
+elseif Library.UpdateColors then
+	Library:UpdateColors()
+end
+-- ===== hết boot =====
 local ThemeManager, SaveManager
 pcall(function() ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))() end)
 pcall(function() SaveManager = loadstring(game:HttpGet(repo .. 'addons/SaveManager.lua'))() end)
@@ -106,14 +128,337 @@ local DroneConnection = nil
 local DroneWalkedIntoParents = {}
 local AntiNoiseConnection = nil
 local AntiMonumentConnection = nil
+do
+	local DISCORD = "https://discord.gg/3eHTX99Zz"
+	local CORRECT_KEY = "Leafy54"
+	local KEY_FILE = "LeafHub_Key.txt"
+
+	-- Detect executor (tên phổ biến)
+	local function getExecutorName()
+		local name = "Unknown"
+		pcall(function()
+			if identifyexecutor then name = tostring(identifyexecutor()) end
+		end)
+		pcall(function()
+			if getexecutorname then name = tostring(getexecutorname()) end
+		end)
+		return name
+	end
+
+	local execName = getExecutorName()
+	local execLower = string.lower(execName)
+
+	local blocked = {
+		xeno = true,
+		solara = true,
+		jjsploit = true,
+		["jj sploit"] = true,
+	}
+	local isBlocked = false
+	for k in pairs(blocked) do
+		if execLower:find(k, 1, true) then
+			isBlocked = true
+			break
+		end
+	end
+
+	if isBlocked then
+		-- Xeno / Solara / JJSploit
+		pcall(function()
+			game:GetService("StarterGui"):SetCore("SendNotification", {
+				Title = "Leaf Hub",
+				Text = (execLower:find("xeno") and "Executor Yours is like shit 💩 / Executor của bạn như cứt vậy 💩")
+					or ("Executor không được hỗ trợ: " .. execName),
+				Duration = 4,
+			})
+		end)
+		task.wait(4)
+		pcall(function()
+			LocalPlayer:Kick("You've been banned because your Executor brain is like shit 💩")
+		end)
+		return -- dừng script
+	end
+
+	-- Methods check (các API Leaf dùng)
+	local methods = {
+		{ "getgenv", getgenv },
+		{ "fireproximityprompt", fireproximityprompt or Firepp },
+		{ "firetouchinterest", firetouchinterest or FireTouch },
+		{ "isnetworkowner", isnetworkowner },
+		{ "hookmetamethod", hookmetamethod },
+		{ "getnamecallmethod", getnamecallmethod },
+		{ "setclipboard", setclipboard },
+		{ "writefile", writefile },
+		{ "readfile", readfile },
+		{ "isfile", isfile },
+		{ "getconnections", getconnections },
+		{ "sethiddenproperty", sethiddenproperty },
+		{ "setsimulationradius", setsimulationradius },
+		{ "gethui", gethui },
+		{ "cloneref", cloneref },
+	}
+
+	-- Remember key 24h
+	local remembered = false
+	pcall(function()
+		if isfile and isfile(KEY_FILE) and readfile then
+			local raw = readfile(KEY_FILE)
+			local key, exp = string.match(raw or "", "^(.-)|(%d+)$")
+			if key == CORRECT_KEY and exp and tonumber(exp) and os.time() < tonumber(exp) then
+				remembered = true
+			end
+		end
+	end)
+	if remembered then
+		-- skip UI
+	else
+		local passed = false
+		local sg = Instance.new("ScreenGui")
+		sg.Name = "LeafKeySystem"
+		sg.ResetOnSpawn = false
+		sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		pcall(function()
+			if gethui then sg.Parent = gethui()
+			elseif syn and syn.protect_gui then syn.protect_gui(sg) sg.Parent = game:GetService("CoreGui")
+			else sg.Parent = game:GetService("CoreGui") end
+		end)
+		if not sg.Parent then sg.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+		local main = Instance.new("Frame")
+		main.Size = UDim2.fromOffset(520, 280)
+		main.Position = UDim2.fromScale(0.5, 0.5)
+		main.AnchorPoint = Vector2.new(0.5, 0.5)
+		main.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+		main.BorderSizePixel = 0
+		main.Parent = sg
+		Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
+
+		-- Left panel
+		local left = Instance.new("Frame")
+		left.Size = UDim2.new(0.55, -8, 1, -16)
+		left.Position = UDim2.fromOffset(8, 8)
+		left.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
+		left.BorderSizePixel = 0
+		left.Parent = main
+		Instance.new("UICorner", left).CornerRadius = UDim.new(0, 8)
+
+		local title = Instance.new("TextLabel")
+		title.BackgroundTransparency = 1
+		title.Size = UDim2.new(1, -16, 0, 28)
+		title.Position = UDim2.fromOffset(8, 8)
+		title.Font = Enum.Font.GothamBold
+		title.TextSize = 18
+		title.TextColor3 = Color3.fromRGB(0, 200, 255)
+		title.TextXAlignment = Enum.TextXAlignment.Left
+		title.Text = "Leaf Hub"
+		title.Parent = left
+
+		local welcome = Instance.new("TextLabel")
+		welcome.BackgroundTransparency = 1
+		welcome.Size = UDim2.new(1, -16, 0, 24)
+		welcome.Position = UDim2.fromOffset(8, 100)
+		welcome.Font = Enum.Font.Gotham
+		welcome.TextSize = 16
+		welcome.TextColor3 = Color3.new(1, 1, 1)
+		welcome.Text = "Welcome to Leaf Hub"
+		welcome.Parent = left
+
+		local hint = Instance.new("TextLabel")
+		hint.BackgroundTransparency = 1
+		hint.Size = UDim2.new(1, -16, 0, 40)
+		hint.Position = UDim2.fromOffset(8, 130)
+		hint.Font = Enum.Font.Gotham
+		hint.TextSize = 12
+		hint.TextColor3 = Color3.fromRGB(160, 160, 170)
+		hint.TextWrapped = true
+		hint.Text = "Key free. Join Discord, copy key channel, paste here."
+		hint.Parent = left
+
+		local status = Instance.new("TextLabel")
+		status.BackgroundTransparency = 1
+		status.Size = UDim2.new(1, -16, 0, 20)
+		status.Position = UDim2.fromOffset(8, 240)
+		status.Font = Enum.Font.Gotham
+		status.TextSize = 12
+		status.TextColor3 = Color3.fromRGB(255, 80, 80)
+		status.Text = ""
+		status.Parent = left
+
+		-- Right panel
+		local right = Instance.new("Frame")
+		right.Size = UDim2.new(0.42, -8, 1, -16)
+		right.Position = UDim2.new(0.58, 0, 0, 8)
+		right.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
+		right.BorderSizePixel = 0
+		right.Parent = main
+		Instance.new("UICorner", right).CornerRadius = UDim.new(0, 8)
+
+		local keyLabel = Instance.new("TextLabel")
+		keyLabel.BackgroundTransparency = 1
+		keyLabel.Size = UDim2.new(1, -16, 0, 18)
+		keyLabel.Position = UDim2.fromOffset(8, 10)
+		keyLabel.Font = Enum.Font.Gotham
+		keyLabel.TextSize = 12
+		keyLabel.TextColor3 = Color3.fromRGB(180, 180, 190)
+		keyLabel.TextXAlignment = Enum.TextXAlignment.Left
+		keyLabel.Text = "Key"
+		keyLabel.Parent = right
+
+		local box = Instance.new("TextBox")
+		box.Size = UDim2.new(1, -16, 0, 28)
+		box.Position = UDim2.fromOffset(8, 32)
+		box.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+		box.Text = ""
+		box.PlaceholderText = "Paste your key here"
+		box.Font = Enum.Font.Gotham
+		box.TextSize = 14
+		box.TextColor3 = Color3.new(1, 1, 1)
+		box.ClearTextOnFocus = false
+		box.Parent = right
+		Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
+
+		local remember = false
+		local remBtn = Instance.new("TextButton")
+		remBtn.Size = UDim2.new(1, -16, 0, 22)
+		remBtn.Position = UDim2.fromOffset(8, 68)
+		remBtn.BackgroundTransparency = 1
+		remBtn.Font = Enum.Font.Gotham
+		remBtn.TextSize = 12
+		remBtn.TextColor3 = Color3.fromRGB(200, 200, 210)
+		remBtn.TextXAlignment = Enum.TextXAlignment.Left
+		remBtn.Text = "☐ Remember Key For 24 Hours"
+		remBtn.Parent = right
+		remBtn.MouseButton1Click:Connect(function()
+			remember = not remember
+			remBtn.Text = (remember and "☑" or "☐") .. " Remember Key For 24 Hours"
+		end)
+
+		local discordBtn = Instance.new("TextButton")
+		discordBtn.Size = UDim2.new(0.48, -6, 0, 28)
+		discordBtn.Position = UDim2.fromOffset(8, 100)
+		discordBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+		discordBtn.Text = "Join Discord"
+		discordBtn.Font = Enum.Font.GothamBold
+		discordBtn.TextSize = 12
+		discordBtn.TextColor3 = Color3.new(1, 1, 1)
+		discordBtn.Parent = right
+		Instance.new("UICorner", discordBtn).CornerRadius = UDim.new(0, 6)
+		discordBtn.MouseButton1Click:Connect(function()
+			pcall(function()
+				if setclipboard then setclipboard(DISCORD) end
+			end)
+			status.TextColor3 = Color3.fromRGB(80, 220, 120)
+			status.Text = "Discord link copied!"
+		end)
+
+		local copyBtn = Instance.new("TextButton")
+		copyBtn.Size = UDim2.new(0.48, -6, 0, 28)
+		copyBtn.Position = UDim2.new(0.52, 0, 0, 100)
+		copyBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+		copyBtn.Text = "Copy Link"
+		copyBtn.Font = Enum.Font.Gotham
+		copyBtn.TextSize = 12
+		copyBtn.TextColor3 = Color3.new(1, 1, 1)
+		copyBtn.Parent = right
+		Instance.new("UICorner", copyBtn).CornerRadius = UDim.new(0, 6)
+		copyBtn.MouseButton1Click:Connect(function()
+			pcall(function()
+				if setclipboard then setclipboard(DISCORD) end
+			end)
+		end)
+
+		-- Methods list
+		local methTitle = Instance.new("TextLabel")
+		methTitle.BackgroundTransparency = 1
+		methTitle.Size = UDim2.new(1, -16, 0, 16)
+		methTitle.Position = UDim2.fromOffset(8, 138)
+		methTitle.Font = Enum.Font.GothamBold
+		methTitle.TextSize = 11
+		methTitle.TextColor3 = Color3.fromRGB(0, 200, 255)
+		methTitle.TextXAlignment = Enum.TextXAlignment.Left
+		methTitle.Text = "Methods"
+		methTitle.Parent = right
+
+		local y = 156
+		for _, m in ipairs(methods) do
+			local ok = m[2] ~= nil
+			local row = Instance.new("TextLabel")
+			row.BackgroundTransparency = 1
+			row.Size = UDim2.new(1, -16, 0, 12)
+			row.Position = UDim2.fromOffset(8, y)
+			row.Font = Enum.Font.Code
+			row.TextSize = 10
+			row.TextXAlignment = Enum.TextXAlignment.Left
+			row.TextColor3 = ok and Color3.fromRGB(80, 220, 120) or Color3.fromRGB(255, 90, 90)
+			row.Text = (ok and "✅ " or "❌ ") .. m[1]
+			row.Parent = right
+			y += 12
+			if y > 250 then break end
+		end
+
+		local cont = Instance.new("TextButton")
+		cont.Size = UDim2.new(1, -16, 0, 30)
+		cont.Position = UDim2.new(0, 8, 1, -40)
+		cont.BackgroundColor3 = Color3.fromRGB(0, 140, 220)
+		cont.Text = "Continue"
+		cont.Font = Enum.Font.GothamBold
+		cont.TextSize = 14
+		cont.TextColor3 = Color3.new(1, 1, 1)
+		cont.Parent = right
+		Instance.new("UICorner", cont).CornerRadius = UDim.new(0, 6)
+
+		cont.MouseButton1Click:Connect(function()
+			local k = box.Text and string.gsub(box.Text, "^%s*(.-)%s*$", "%1") or ""
+			if k ~= CORRECT_KEY then
+				status.TextColor3 = Color3.fromRGB(255, 80, 80)
+				status.Text = "Key sai!"
+				pcall(function()
+					if setclipboard then setclipboard(DISCORD) end
+				end)
+				return
+			end
+			if remember and writefile then
+				pcall(function()
+					writefile(KEY_FILE, CORRECT_KEY .. "|" .. tostring(os.time() + 86400))
+				end)
+			end
+			status.TextColor3 = Color3.fromRGB(80, 220, 120)
+			status.Text = "OK — loading 5s..."
+			task.delay(5, function()
+				passed = true
+				sg:Destroy()
+			end)
+		end)
+
+		-- chặn script tới khi pass
+		while not passed and sg.Parent do
+			task.wait(0.1)
+		end
+		if not passed then return end
+	end
+end
 local Window = Library:CreateWindow({
-Title = LibraryName,
-Center = true,
-ToggleKeybind = Enum.KeyCode.RightControl,
+	Title = LibraryName,
+	Center = true,
+	ToggleKeybind = Enum.KeyCode.RightControl,
+	Animations = LEAF_GAMING and {
+		ToggleWindow = true,
+		TabSwitch = true,
+		Groupbox = true,
+		Dropdown = true,
+		KeyPicker = true,
+	} or {
+		ToggleWindow = false,
+		TabSwitch = false,
+		Groupbox = false,
+		Dropdown = false,
+		KeyPicker = false,
+	},
+})
 AutoShow = true,
 NotifySide = "Right",
 ShowCustomCursor = true,
-Footer = "obsidian-ui",
+Footer = "https://discord.gg/3eHTX99Zz.  |Leaf-Hub✅",
 CornerRadius = 12,
 })
 Window.MainFrame.Size = UDim2.fromOffset(690, 300)
