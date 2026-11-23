@@ -50,6 +50,14 @@ local LibraryName = '🌿 Leaf Hub'
 repeat task.wait() until LocalPlayer.Character
 getgenv().ScriptLibrary = "Obsidian"
 local repo = 'https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/'
+if not getgenv().Library then
+	getgenv().Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
+end
+local Library = getgenv().Library
+if type(Library) ~= "table" then
+	warn("[Leaf] Không load được thư viện UI.")
+	return
+end
 -- ===== Gaming Menu Mode (boot) — TRƯỚC CreateWindow =====
 local LEAF_GAMING = getgenv().LeafGamingMenuMode == true
 
