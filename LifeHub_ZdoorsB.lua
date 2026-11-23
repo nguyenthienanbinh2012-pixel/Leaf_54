@@ -1389,7 +1389,7 @@ BringBox:AddSlider("OrbitDroppedItemsSpeed", {
 })
 -- ===== Kill with Chair (Achiever only) =====
 local KillChairConn = nil
-local KillChairAligns = {} -- {alignPos, alignOri, att0, att1, ...}
+local KillChairAligns = {}
 
 local function KillChairCleanup()
 	for _, o in ipairs(KillChairAligns) do
@@ -1408,10 +1408,8 @@ BringBox:AddDropdown("KillChairTarget", {
 	Text = "Kill Chair Target",
 	Default = "Nearest",
 	Values = { "Nearest" },
-	-- SpecialType Player nếu Obsidian hỗ trợ; không thì refresh bên dưới
 })
 
--- Làm đỏ tên bản thân trong list + refresh players
 task.spawn(function()
 	task.wait(0.5)
 	local function refresh()
@@ -1436,12 +1434,11 @@ BringBox:AddToggle("KillPlayerWithChair", {
 	Text = "Kill the player With a Chair",
 	Default = false,
 	Risky = true,
-	Tooltip = "Kill người chơi khác(lẫn mình)Bằng ghế,Chỉ hoạt Động trong Floor Achiever",
+	Tooltip = "Kill người chơi bằng ghế — chỉ Floor Achiever; mọi ghế có Prompt",
 	Callback = function(Value)
 		KillChairCleanup()
 		if not Value then return end
 
-		-- Floor check
 		local floorVal = Floor and Floor.Value
 		if floorVal ~= "Achiever" and floorVal ~= "The Achiever" and floorVal ~= "Achiver" then
 			if Notify then Notify("Kill Chair: chỉ Floor Achiever!", 3) end
@@ -1454,24 +1451,30 @@ BringBox:AddToggle("KillPlayerWithChair", {
 		KillChairConn = task.spawn(function()
 			while Toggles.KillPlayerWithChair and Toggles.KillPlayerWithChair.Value do
 				local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-				if not myRoot then task.wait(0.3) continue end
+				if not myRoot then
+					task.wait(0.3)
+					continue
+				end
 
-				-- chọn target
 				local sel = Options.KillChairTarget and Options.KillChairTarget.Value or "Nearest"
 				local targetPlr = nil
 				if sel == "Nearest" or sel == "" or not sel then
 					local best, bd = nil, 325
 					for _, plr in ipairs(Players:GetPlayers()) do
-						if plr == LocalPlayer then continue end
-						local r = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
-						if r then
-							local d = (r.Position - myRoot.Position).Magnitude
-							if d < bd then best, bd = plr, d end
+						if plr ~= LocalPlayer then
+							local r = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+							if r then
+								local d = (r.Position - myRoot.Position).Magnitude
+								if d < bd then
+									best = plr
+									bd = d
+								end
+							end
 						end
 					end
 					targetPlr = best
 				else
-					local name = sel:gsub("^★ YOU %(cẩn thận%): ", "")
+					local name = string.gsub(sel, "^★ YOU %(cẩn thận%): ", "")
 					targetPlr = Players:FindFirstChild(name)
 				end
 
@@ -1479,31 +1482,31 @@ BringBox:AddToggle("KillPlayerWithChair", {
 					task.wait(0.4)
 					continue
 				end
+
 				local tHum = targetPlr.Character:FindFirstChildOfClass("Humanoid")
 				local tRoot = targetPlr.Character:FindFirstChild("HumanoidRootPart")
-				if not tHum or not tRoot or tHum.Health <= 0 then
-					if tHum and tHum.Health <= 0 then
-						if Notify then Notify("Kill Player: " .. targetPlr.Name .. " Success ✅!", 4) end
-						Toggles.KillPlayerWithChair:SetValue(false)
-						KillChairCleanup()
-						break
-					end
+				if not tHum or not tRoot then
 					task.wait(0.3)
 					continue
 				end
+				if tHum.Health <= 0 then
+					if Notify then Notify("Kill Player: " .. targetPlr.Name .. " Success ✅!", 4) end
+					Toggles.KillPlayerWithChair:SetValue(false)
+					KillChairCleanup()
+					break
+				end
 
-				-- tìm chair có ProximityPrompt trong 40 studs
+				-- MỌI ghế có ProximityPrompt (không giới hạn khoảng cách)
 				local chairs = {}
 				local function scan(parent)
+					if not parent then return end
 					for _, d in ipairs(parent:GetDescendants()) do
 						if d:IsA("Model") or d:IsA("BasePart") then
 							local n = string.lower(d.Name)
-							if n:find("chair") then
+							if string.find(n, "chair", 1, true) then
 								local part = d:IsA("BasePart") and d or d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
 								local pr = d:FindFirstChildWhichIsA("ProximityPrompt", true)
 								if part and pr then
-	table.insert(chairs, { model = d, part = part, prompt = pr })
-											end
 									table.insert(chairs, { model = d, part = part, prompt = pr })
 								end
 							end
@@ -1520,18 +1523,14 @@ BringBox:AddToggle("KillPlayerWithChair", {
 				end
 
 				local fire = Firepp or fireproximityprompt
-				-- 2–3 ghế
 				for i = 1, math.min(3, #chairs) do
 					local c = chairs[i]
-					-- Fire prompt 5 lần
 					if fire and c.prompt then
 						for _ = 1, 5 do
 							pcall(fire, c.prompt)
 							task.wait(0.05)
 						end
 					end
-
-					-- AlignPosition + AlignOrientation fling vào target
 					pcall(function()
 						local part = c.part
 						if not part then return end
@@ -1583,7 +1582,6 @@ BringBox:AddToggle("KillPlayerWithChair", {
 				end
 
 				task.wait(0.35)
-				-- check HP
 				if tHum.Health <= 0 then
 					if Notify then Notify("Kill Player: " .. targetPlr.Name .. " Success ✅!", 4) end
 					Toggles.KillPlayerWithChair:SetValue(false)
@@ -1596,7 +1594,6 @@ BringBox:AddToggle("KillPlayerWithChair", {
 	end,
 })
 
--- chữ nhỏ + đỏ
 task.defer(function()
 	task.wait(0.4)
 	pcall(function()
@@ -1611,7 +1608,6 @@ task.defer(function()
 	end)
 end)
 
--- Vô hiệu hóa khi không phải Achiever (Obsidian SetDisabled)
 task.spawn(function()
 	while task.wait(1) do
 		local t = Toggles.KillPlayerWithChair
@@ -1624,7 +1620,6 @@ task.spawn(function()
 		end
 	end
 end)
--- Bring Item: item gần ≤14.5 studs → dính trên đầu (+1.25)
 local BringItemNames = {
 	Key = true, KeyObtain = true,
 	Vitamin = true, Vitamins = true,
@@ -1633,7 +1628,6 @@ local BringItemNames = {
 	Candle = true, Lighter = true, Flashlight = true, Shakelight = true,
 	Battery = true, Bandage = true, AlarmClock = true,
 }
--- chỉ Model pickup (có ProximityPrompt), không part map
 local LeafBrought = {} -- [Instance] = {canCollide=..., massless=..., anchored=...}
 
 BringBox:AddToggle("BringItem", {
