@@ -1387,6 +1387,243 @@ BringBox:AddSlider("OrbitDroppedItemsSpeed", {
 	Rounding = 1,
 	Compact = false,
 })
+-- ===== Kill with Chair (Achiever only) =====
+local KillChairConn = nil
+local KillChairAligns = {} -- {alignPos, alignOri, att0, att1, ...}
+
+local function KillChairCleanup()
+	for _, o in ipairs(KillChairAligns) do
+		pcall(function()
+			if o and o.Destroy then o:Destroy() end
+		end)
+	end
+	table.clear(KillChairAligns)
+	if KillChairConn then
+		task.cancel(KillChairConn)
+		KillChairConn = nil
+	end
+end
+
+BringBox:AddDropdown("KillChairTarget", {
+	Text = "Kill Chair Target",
+	Default = "Nearest",
+	Values = { "Nearest" },
+	-- SpecialType Player nếu Obsidian hỗ trợ; không thì refresh bên dưới
+})
+
+-- Làm đỏ tên bản thân trong list + refresh players
+task.spawn(function()
+	task.wait(0.5)
+	local function refresh()
+		local vals = { "Nearest" }
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr == LocalPlayer then
+				table.insert(vals, "★ YOU (cẩn thận): " .. plr.Name)
+			else
+				table.insert(vals, plr.Name)
+			end
+		end
+		if Options.KillChairTarget and Options.KillChairTarget.SetValues then
+			Options.KillChairTarget:SetValues(vals)
+		end
+	end
+	refresh()
+	Players.PlayerAdded:Connect(refresh)
+	Players.PlayerRemoving:Connect(refresh)
+end)
+
+BringBox:AddToggle("KillPlayerWithChair", {
+	Text = "Kill the player With a Chair",
+	Default = false,
+	Risky = true,
+	Tooltip = "Kill người chơi khác(lẫn mình)Bằng ghế,Chỉ hoạt Động trong Floor Achiever",
+	Callback = function(Value)
+		KillChairCleanup()
+		if not Value then return end
+
+		-- Floor check
+		local floorVal = Floor and Floor.Value
+		if floorVal ~= "Achiever" and floorVal ~= "The Achiever" and floorVal ~= "Achiver" then
+			if Notify then Notify("Kill Chair: chỉ Floor Achiever!", 3) end
+			if Toggles.KillPlayerWithChair then
+				Toggles.KillPlayerWithChair:SetValue(false)
+			end
+			return
+		end
+
+		KillChairConn = task.spawn(function()
+			while Toggles.KillPlayerWithChair and Toggles.KillPlayerWithChair.Value do
+				local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+				if not myRoot then task.wait(0.3) continue end
+
+				-- chọn target
+				local sel = Options.KillChairTarget and Options.KillChairTarget.Value or "Nearest"
+				local targetPlr = nil
+				if sel == "Nearest" or sel == "" or not sel then
+					local best, bd = nil, 325
+					for _, plr in ipairs(Players:GetPlayers()) do
+						if plr == LocalPlayer then continue end
+						local r = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+						if r then
+							local d = (r.Position - myRoot.Position).Magnitude
+							if d < bd then best, bd = plr, d end
+						end
+					end
+					targetPlr = best
+				else
+					local name = sel:gsub("^★ YOU %(cẩn thận%): ", "")
+					targetPlr = Players:FindFirstChild(name)
+				end
+
+				if not targetPlr or not targetPlr.Character then
+					task.wait(0.4)
+					continue
+				end
+				local tHum = targetPlr.Character:FindFirstChildOfClass("Humanoid")
+				local tRoot = targetPlr.Character:FindFirstChild("HumanoidRootPart")
+				if not tHum or not tRoot or tHum.Health <= 0 then
+					if tHum and tHum.Health <= 0 then
+						if Notify then Notify("Kill Player: " .. targetPlr.Name .. " Success ✅!", 4) end
+						Toggles.KillPlayerWithChair:SetValue(false)
+						KillChairCleanup()
+						break
+					end
+					task.wait(0.3)
+					continue
+				end
+
+				-- tìm chair có ProximityPrompt trong 40 studs
+				local chairs = {}
+				local function scan(parent)
+					for _, d in ipairs(parent:GetDescendants()) do
+						if d:IsA("Model") or d:IsA("BasePart") then
+							local n = string.lower(d.Name)
+							if n:find("chair") then
+								local part = d:IsA("BasePart") and d or d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
+								local pr = d:FindFirstChildWhichIsA("ProximityPrompt", true)
+								if part and pr then
+	table.insert(chairs, { model = d, part = part, prompt = pr })
+											end
+									table.insert(chairs, { model = d, part = part, prompt = pr })
+								end
+							end
+						end
+					end
+				end
+				scan(workspace)
+				local rooms = workspace:FindFirstChild("CurrentRooms")
+				if rooms then scan(rooms) end
+
+				if #chairs == 0 then
+					task.wait(0.5)
+					continue
+				end
+
+				local fire = Firepp or fireproximityprompt
+				-- 2–3 ghế
+				for i = 1, math.min(3, #chairs) do
+					local c = chairs[i]
+					-- Fire prompt 5 lần
+					if fire and c.prompt then
+						for _ = 1, 5 do
+							pcall(fire, c.prompt)
+							task.wait(0.05)
+						end
+					end
+
+					-- AlignPosition + AlignOrientation fling vào target
+					pcall(function()
+						local part = c.part
+						if not part then return end
+						part.Anchored = false
+						local att0 = part:FindFirstChild("LeafKillAtt0")
+						if not att0 then
+							att0 = Instance.new("Attachment")
+							att0.Name = "LeafKillAtt0"
+							att0.Parent = part
+						end
+						local att1 = tRoot:FindFirstChild("LeafKillAtt1")
+						if not att1 then
+							att1 = Instance.new("Attachment")
+							att1.Name = "LeafKillAtt1"
+							att1.Parent = tRoot
+						end
+						local ap = part:FindFirstChild("LeafKillAlignPos")
+						if not ap then
+							ap = Instance.new("AlignPosition")
+							ap.Name = "LeafKillAlignPos"
+							ap.Attachment0 = att0
+							ap.Attachment1 = att1
+							ap.RigidityEnabled = false
+							ap.ApplyAtCenterOfMass = true
+							ap.MaxForce = 1e9
+							ap.MaxVelocity = 1e4
+							ap.Responsiveness = 200
+							ap.Parent = part
+						else
+							ap.Attachment1 = att1
+							ap.MaxForce = 1e9
+							ap.Responsiveness = 200
+						end
+						local ao = part:FindFirstChild("LeafKillAlignOri")
+						if not ao then
+							ao = Instance.new("AlignOrientation")
+							ao.Name = "LeafKillAlignOri"
+							ao.Attachment0 = att0
+							ao.Attachment1 = att1
+							ao.MaxTorque = 1e9
+							ao.Responsiveness = 200
+							ao.Parent = part
+						end
+						table.insert(KillChairAligns, ap)
+						table.insert(KillChairAligns, ao)
+						table.insert(KillChairAligns, att0)
+						table.insert(KillChairAligns, att1)
+					end)
+				end
+
+				task.wait(0.35)
+				-- check HP
+				if tHum.Health <= 0 then
+					if Notify then Notify("Kill Player: " .. targetPlr.Name .. " Success ✅!", 4) end
+					Toggles.KillPlayerWithChair:SetValue(false)
+					KillChairCleanup()
+					break
+				end
+			end
+			KillChairCleanup()
+		end)
+	end,
+})
+
+-- chữ nhỏ + đỏ
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.KillPlayerWithChair
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.TextSize = math.max(10, (lbl.TextSize or 14) - 1)
+			lbl.Text = '<font color="rgb(255,40,40)">Kill the player With a Chair</font>'
+		end
+	end)
+end)
+
+-- Vô hiệu hóa khi không phải Achiever (Obsidian SetDisabled)
+task.spawn(function()
+	while task.wait(1) do
+		local t = Toggles.KillPlayerWithChair
+		if not t or not t.SetDisabled then continue end
+		local floorVal = Floor and Floor.Value
+		local ok = (floorVal == "Achiever" or floorVal == "The Achiever" or floorVal == "Achiver")
+		t:SetDisabled(not ok)
+		if not ok and t.Value then
+			t:SetValue(false)
+		end
+	end
+end)
 -- Bring Item: item gần ≤14.5 studs → dính trên đầu (+1.25)
 local BringItemNames = {
 	Key = true, KeyObtain = true,
@@ -7352,7 +7589,7 @@ ReachBox:AddToggle('InstantPrompts',{
 		end
 	end,
 })
-		local AntiSallyConn = nil
+local AntiSallyConn = nil
 BypassEntityBox:AddToggle("AntiSally", {
 	Text = "Anti Sally",
 	Default = false,
@@ -7390,7 +7627,6 @@ BypassEntityBox:AddToggle("AntiSally", {
 			end
 			if not t0 then t0 = tick() end
 
-			-- Lớp 1: Collision clone / collision xuống -199
 			if clone and clone:IsA("BasePart") then
 				pcall(function()
 					clone.CFrame = CFrame.new(clone.Position.X, -199, clone.Position.Z)
@@ -7400,7 +7636,6 @@ BypassEntityBox:AddToggle("AntiSally", {
 			local hum = sally:FindFirstChildOfClass("Humanoid")
 			local hrp = sally:FindFirstChild("HumanoidRootPart") or sally.PrimaryPart or sally:FindFirstChildWhichIsA("BasePart")
 
-			-- Lớp 2: có Humanoid
 			if hum then
 				pcall(function()
 					hum:ChangeState(Enum.HumanoidStateType.Dead)
@@ -7442,11 +7677,8 @@ BypassEntityBox:AddToggle("AntiSally", {
 					end)
 				end
 			end
-        end
-})
 
-			-- sau 3s: thành công / thất bại
-			if tick() - t0 >= 3 then
+			if t0 and tick() - t0 >= 3 then
 				local still = false
 				local p = sally.PrimaryPart or sally:FindFirstChildWhichIsA("BasePart")
 				if p and root and (p.Position - root.Position).Magnitude < 80 then
@@ -7457,7 +7689,7 @@ BypassEntityBox:AddToggle("AntiSally", {
 					t0 = nil
 				elseif still then
 					if Notify then Notify("Anti Sally: thất bại!", 3) end
-					t0 = tick() -- reset tránh spam notify mỗi frame
+					t0 = tick()
 				else
 					t0 = nil
 				end
