@@ -525,6 +525,53 @@ SaveManager:BuildConfigSection(Tabs['Settings'])
 end
 if ThemeManager then
 ThemeManager:ApplyToTab(Tabs['Settings'])
+-- Settings: Gaming Menu Mode
+do
+	local SettingsUI = Tabs.Settings:AddLeftGroupbox("UI Mode", "monitor")
+	SettingsUI:AddToggle("GamingMenuMode", {
+		Text = "Gaming Menu Mode",
+		Default = getgenv().LeafGamingMenuMode == true,
+		Tooltip = "Kích hoạt Menu Gaming,Có thể làm Cấu hình Menu Lag hơn,chậm hơn.",
+		Callback = function(Value)
+			getgenv().LeafGamingMenuMode = Value and true or false
+
+			-- Áp ngay: màu + anim + font (checkbox cần reload)
+			Library.ForceCheckbox = Value
+			Library.Animations = {
+				ToggleWindow = Value,
+				TabSwitch = Value,
+				Groupbox = Value,
+				Dropdown = Value,
+				KeyPicker = Value,
+			}
+			if Value then
+				pcall(function()
+					Library.Scheme.Font = Font.fromEnum(Enum.Font.GothamMedium)
+				end)
+				Library.Scheme.AccentColor = Color3.fromRGB(0, 180, 255) -- xanh lam tươi
+			else
+				pcall(function()
+					Library.Scheme.Font = Font.fromEnum(Enum.Font.Code)
+				end)
+				Library.Scheme.AccentColor = Color3.fromRGB(27, 255, 20) -- xanh lá Leaf
+			end
+			if Library.UpdateColorsUsingRegistry then
+				Library:UpdateColorsUsingRegistry()
+			elseif Library.UpdateColors then
+				Library:UpdateColors()
+			end
+
+			if Notify then
+				Notify(
+					Value
+						and "Gaming Mode: màu/anim OK."
+						or "Đã tắt Gaming Mode. Re-execute nếu muốn switch style cũ.",
+					5
+				)
+			end
+		end,
+	})
+	end
 end
 Notify("Successfully Loaded for Game |  DOORS Lobby ",4)
 else
