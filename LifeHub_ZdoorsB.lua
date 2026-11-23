@@ -2682,6 +2682,7 @@ TargetBox:AddToggle("DeleteJeffClient", {
 		end)
 	end,
 })
+	task.defer(function()
 	task.wait(0.4)
 	pcall(function()
 		local t = Toggles.DeleteJeffFE
@@ -2735,7 +2736,6 @@ TargetBox:AddToggle("RemoveJack", {
 		table.insert(RemoveJackConn, ss.DescendantAdded:Connect(nuke))
 	end,
 })
-end)
 local AutoBox = Tabs.Main:AddRightGroupbox('Auto','bot')
 local ReachBox = Tabs.Main:AddRightGroupbox('Reach','maximize')
 local CameraBox = Tabs.Visuals:AddLeftGroupbox('Camera','camera')
@@ -2745,7 +2745,7 @@ local Aura999Parts = {}
 LightingBox:AddToggle("Aura999", {
 	Text = "Aura999",
 	Default = false,
-	Tooltip = "Ghost Glass xanh lá đậm + viền xanh lá / xanh lam (client)",
+	Tooltip = "Làm nhân Vật Aura999,Sigma",
 	Callback = function(Value)
 		if Aura999Conn then
 			Aura999Conn:Disconnect()
