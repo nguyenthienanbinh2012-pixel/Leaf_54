@@ -2505,6 +2505,9 @@ TargetBox:AddToggle("RemoveEyes", {
 				end
 				task.wait(0.2)
 			end
+		end)
+	end,
+})
 local DeleteJeffConn = nil
 TargetBox:AddToggle("DeleteJeffFE", {
 	Text = "Delete Jeff [FE]",
@@ -3835,7 +3838,11 @@ end
 task.spawn(function()
 task.wait(0.1)
 ESPLibrary:SetTracers(false)
-ESPLibrary:SetFont("Legacy")
+ESPLibrary:SetFont("Gotham")
+pcall(function()
+	if ESPLibrary.SetTextSize then ESPLibrary:SetTextSize(14) end
+	if ESPLibrary.SetScale then ESPLibrary:SetScale(false) end
+end)
 end)
 PlayerBox:AddSlider("MovementSpeed", {
 Text = "Movement Speed",
@@ -4618,7 +4625,7 @@ end)
 ESPHooks = {}
 task.spawn(function()
 local DoorColor         = Color3.fromRGB(120, 255, 120)
-local ItemsColor        = Color3.fromRGB(0, 50, 180)
+local ItemsColor        = Color3.fromRGB(255, 80, 200)
 local HidingPlaceColor  = Color3.fromRGB(255, 255, 255)
 local LeverColor        = Color3.fromRGB(150, 150, 150)
 local BookColor         = Color3.fromRGB(0, 50, 180)
@@ -7458,129 +7465,6 @@ BypassEntityBox:AddToggle("AntiSally", {
 		end)
 	end,
 })
-local AntiSallyConn = nil
-BypassEntityBox:AddToggle("AntiSally", {
-	Text = "Anti Sally",
-	Default = false,
-	Risky = true,
-	Tooltip = "Bảo vệ khỏi Sally Entity Và cố gắng đẩy sally xuống void có thể thất bại",
-	Callback = function(Value)
-		if AntiSallyConn then
-			if typeof(AntiSallyConn) == "RBXScriptConnection" then
-				AntiSallyConn:Disconnect()
-			else
-				task.cancel(AntiSallyConn)
-			end
-			AntiSallyConn = nil
-		end
-		if not Value then return end
-		local t0 = nil
-		AntiSallyConn = RunService.Heartbeat:Connect(function()
-			if not (Toggles.AntiSally and Toggles.AntiSally.Value) then return end
-			local char = LocalPlayer.Character
-			local root = char and char:FindFirstChild("HumanoidRootPart")
-			local clone = char and (char:FindFirstChild("CollisionClone") or char:FindFirstChild("Collision") or char:FindFirstChild("CollisionPart"))
-
-			local sally = workspace:FindFirstChild("Sally") or workspace:FindFirstChild("SallyRig")
-			if not sally then
-				for _, c in ipairs(workspace:GetChildren()) do
-					if typeof(c.Name) == "string" and string.lower(c.Name):find("sally") then
-						sally = c
-						break
-					end
-				end
-			end
-			if not sally then
-				t0 = nil
-				return
-			end
-			if not t0 then t0 = tick() end
-
-			-- Lớp 1: Collision clone / collision xuống -199
-			if clone and clone:IsA("BasePart") then
-				pcall(function()
-					clone.CFrame = CFrame.new(clone.Position.X, -199, clone.Position.Z)
-				end)
-			end
-
-			local hum = sally:FindFirstChildOfClass("Humanoid")
-			local hrp = sally:FindFirstChild("HumanoidRootPart") or sally.PrimaryPart or sally:FindFirstChildWhichIsA("BasePart")
-
-			-- Lớp 2: có Humanoid
-			if hum then
-				pcall(function()
-					hum:ChangeState(Enum.HumanoidStateType.Dead)
-					hum.Health = 0
-				end)
-			else
-				pcall(function()
-					for _, p in ipairs(sally:GetDescendants()) do
-						if p:IsA("BasePart") then
-							p.CanCollide = false
-							p.CanTouch = false
-						end
-					end
-				end)
-				local hasNet = false
-				pcall(function()
-					if hrp and isnetworkowner and isnetworkowner(hrp) then hasNet = true end
-				end)
-				if hasNet and hrp then
-					pcall(function()
-						if sally.PivotTo then
-							sally:PivotTo(CFrame.new(hrp.Position.X, -12999, hrp.Position.Z))
-						else
-							hrp.CFrame = CFrame.new(hrp.Position.X, -12999, hrp.Position.Z)
-						end
-					end)
-				elseif hrp then
-					pcall(function()
-						if sethiddenproperty then
-							sethiddenproperty(LocalPlayer, "SimulationRadius", 500)
-							sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 500)
-						end
-						if setsimulationradius then setsimulationradius(500) end
-						if sally.PivotTo then
-							sally:PivotTo(CFrame.new(hrp.Position.X, -800, hrp.Position.Z))
-						else
-							hrp.CFrame = CFrame.new(hrp.Position.X, -800, hrp.Position.Z)
-						end
-					end)
-				end
-			end
-
-			-- sau 3s: thành công / thất bại
-			if tick() - t0 >= 3 then
-				local still = false
-				local p = sally.PrimaryPart or sally:FindFirstChildWhichIsA("BasePart")
-				if p and root and (p.Position - root.Position).Magnitude < 80 then
-					still = true
-				end
-				if p and p.Position.Y < -50 then
-					if Notify then Notify("Anti Sally: thành công!", 3) end
-					t0 = nil
-				elseif still then
-					if Notify then Notify("Anti Sally: thất bại!", 3) end
-					t0 = tick() -- reset tránh spam notify mỗi frame
-				else
-					t0 = nil
-				end
-			end
-		end)
-	end,
-})
-task.defer(function()
-	task.wait(0.4)
-	pcall(function()
-		local t = Toggles.AntiSally
-		if not t then return end
-		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
-		if lbl then
-			lbl.RichText = true
-			lbl.Text = '<font color="rgb(255,215,0)">Anti Sally</font>'
-		end
-	end)
-end)
 ReachBox:AddToggle('PromptClip',{
 	Text = "Prompt Clip",
 	Default = false,
