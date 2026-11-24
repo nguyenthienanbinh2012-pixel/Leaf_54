@@ -137,12 +137,12 @@ end)
 local Window = Library:CreateWindow({
 	Title = "Leaf Hub",
 	Icon = LeafLogoAsset or "leaf",
-	IconSize = UDim2.fromOffset(28, 28),
+	IconSize = UDim2.fromOffset(50, 50),
 	Center = true,
 	ToggleKeybind = Enum.KeyCode.RightControl,
 	AutoShow = true,
 	NotifySide = "Right",
-	ShowCustomCursor = true,
+	ShowCustomCursor = false,
 	Footer = "https://discord.gg/3eHTX99Zz | Leaf-Hub",
 	CornerRadius = 12,
 })
