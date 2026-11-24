@@ -677,19 +677,19 @@ local ItemDisplayNames = {
 ["LibraryHintPaper"] = "Hint Paper",
 ["LotusPetalPickup"] = "Lotus Petal",
 }
-local Floor = ReplicatedStorage:WaitForChild("GameData"):WaitForChild("Floor")
-local LatestRoom = ReplicatedStorage:WaitForChild("GameData"):WaitForChild("LatestRoom")
-local MainGame = LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("MainUI").Initiator:WaitForChild("Main_Game")
-local RemoteListener = MainGame:WaitForChild("RemoteListener")
-local RequiredMainGame
-local ClientModules = ReplicatedStorage:FindFirstChild("ModulesClient") or ReplicatedStorage:FindFirstChild("ClientModules")
-local RemotesFolder = ReplicatedStorage:FindFirstChild("EntityInfo") and ReplicatedStorage:FindFirstChild("EntityInfo")  or ReplicatedStorage:FindFirstChild("Bricks")  and ReplicatedStorage:FindFirstChild("Bricks") or ReplicatedStorage:FindFirstChild("RemotesFolder")
-local MotorReplication = RemotesFolder:WaitForChild("MotorReplication")
-local CollisionClone
-local CamLock = RemotesFolder:WaitForChild("CamLock")
-local AnchorArgs
-local PL = RemotesFolder:WaitForChild("PL")
-local ClutchHeartbeat = RemotesFolder:WaitForChild("ClutchHeartbeat")
+local GameData = ReplicatedStorage:WaitForChild("GameData", 10)
+local Floor = GameData and GameData:WaitForChild("Floor", 5)
+local LatestRoom = GameData and GameData:WaitForChild("LatestRoom", 5)
+
+local mainUI = LocalPlayer:WaitForChild("PlayerGui", 10)
+	and LocalPlayer.PlayerGui:WaitForChild("MainUI", 10)
+local initiator = mainUI and mainUI:FindFirstChild("Initiator")
+local MainGame = initiator and initiator:WaitForChild("Main_Game", 10)
+local RemoteListener = MainGame and MainGame:FindFirstChild("RemoteListener")
+
+local RemotesFolder = ReplicatedStorage:FindFirstChild("RemotesFolder") or ReplicatedStorage:FindFirstChild("EntityInfo")
+local MotorReplication = RemotesFolder and RemotesFolder:FindFirstChild("MotorReplication")
+-- không :WaitForChild() mãi nếu nil
 local params = RaycastParams.new()
 params.FilterDescendantsInstances = {LocalPlayer.Character}
 local  SeekPath = Instance.new("Folder",workspace)
