@@ -886,7 +886,7 @@ do
 	}
 	local okCount, total = 0, #checks
 	for _, c in ipairs(checks) do
-		local ok = c[2] \~= nil
+		local ok = c[2] ~= nil
 		if ok then okCount += 1 end
 		local reason = ok and "" or " — thiếu trên executor"
 		ExecBox:AddLabel(
@@ -1366,6 +1366,207 @@ task.spawn(function()
 		if not ok and t.Value then t:SetValue(false) end
 	end
 end)
+-- ===== Bring Drawers =====
+local BringDrawerConn = nil
+local BroughtDrawers = {}
+local cachedRoom, cachedNextRoom = nil, nil
+local lastRoomNum = nil
+local cachedDrawers = {}
+local cachedDrawerRoom = nil
+
+local function LeafGetCurrentRooms()
+	local currentRooms = workspace:FindFirstChild("CurrentRooms")
+	if not currentRooms then return nil, nil end
+	local roomNum = tonumber(LocalPlayer:GetAttribute("CurrentRoom"))
+	if not roomNum then
+		local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+		if not hrp then return nil, nil end
+		local closestRoom, closestDist = nil, math.huge
+		for _, room in ipairs(currentRooms:GetChildren()) do
+			if room:IsA("Model") then
+				local ok, piv = pcall(function() return room:GetPivot() end)
+				if ok and piv then
+					local d = (piv.Position - hrp.Position).Magnitude
+					if d < closestDist then
+						closestDist = d
+						closestRoom = room
+					end
+				end
+			end
+		end
+		if closestRoom then roomNum = tonumber(closestRoom.Name) end
+	end
+	if roomNum and roomNum ~= lastRoomNum then
+		lastRoomNum = roomNum
+		cachedRoom = currentRooms:FindFirstChild(tostring(roomNum))
+		cachedNextRoom = currentRooms:FindFirstChild(tostring(roomNum + 1))
+	end
+	return cachedRoom, cachedNextRoom
+end
+
+local function LeafFindAllDrawers(maxDist)
+	local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return {} end
+	local currentRoom, nextRoom = LeafGetCurrentRooms()
+	if not currentRoom then return {} end
+	if currentRoom ~= cachedDrawerRoom then
+		cachedDrawerRoom = currentRoom
+		cachedDrawers = {}
+		local function scanRoom(room)
+			if not room then return end
+			for _, o in ipairs(room:GetDescendants()) do
+				if o:IsA("Model") and o.Name:find("Drawer") then
+					local dMain = o:FindFirstChild("Main")
+					if dMain and dMain:IsA("BasePart") then
+						local activatePrompt
+						local knobs = o:FindFirstChild("Knobs")
+						if knobs then
+							for _, p in ipairs(knobs:GetDescendants()) do
+								if p:IsA("ProximityPrompt") and p.Name:find("Activate") then
+									activatePrompt = p
+									break
+								end
+							end
+						end
+						if activatePrompt then
+							table.insert(cachedDrawers, {
+								model = o,
+								main = dMain,
+								activatePrompt = activatePrompt,
+								origCF = dMain.CFrame,
+								origAnch = dMain.Anchored,
+							})
+						end
+					end
+				end
+			end
+		end
+		scanRoom(currentRoom)
+		scanRoom(nextRoom)
+	end
+	local list = {}
+	for _, dr in ipairs(cachedDrawers) do
+		if not BroughtDrawers[dr.model]
+			and dr.model.Parent
+			and dr.main and dr.main.Parent
+			and dr.activatePrompt and dr.activatePrompt.Parent
+			and dr.activatePrompt.Enabled
+		then
+			local d = (dr.main.Position - hrp.Position).Magnitude
+			if d <= maxDist then
+				dr.dist = d
+				table.insert(list, dr)
+			end
+		end
+	end
+	table.sort(list, function(a, b) return a.dist < b.dist end)
+	return list
+end
+
+local function LeafBringOneDrawer(dr)
+	local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return false end
+	if not dr.main or not dr.main.Parent then return false end
+	if not dr.activatePrompt or not dr.activatePrompt.Parent then return false end
+	if not dr.activatePrompt.Enabled then return true end
+
+	local origCF = dr.main.CFrame
+	local origAnch = dr.main.Anchored
+	local fire = Firepp or fireproximityprompt
+
+	dr.main.Anchored = false
+	local start = tick()
+	local promptOffTime = nil
+	local looted = false
+	while tick() - start < 0.5 do
+		if not (Toggles.BringDrawers and Toggles.BringDrawers.Value) then break end
+		local cf = hrp.CFrame * CFrame.new(0, 0.75, -0.5)
+		dr.main.CFrame = cf
+		dr.main.AssemblyLinearVelocity = Vector3.zero
+		dr.main.AssemblyAngularVelocity = Vector3.zero
+		if dr.activatePrompt and dr.activatePrompt.Parent then
+			dr.activatePrompt.Enabled = true
+			if fire then pcall(fire, dr.activatePrompt) end
+		end
+		local hasLoot = false
+		for _, d in ipairs(dr.model:GetDescendants()) do
+			if (d.Name == "GoldLive" or d.Name == "SpawnPile") and d:IsA("BasePart") then
+				hasLoot = true
+				d.CFrame = hrp.CFrame * CFrame.new(0, 0, -0.5)
+			end
+		end
+		if dr.activatePrompt and not dr.activatePrompt.Enabled then
+			if not promptOffTime then promptOffTime = tick() end
+			if tick() - promptOffTime > 0.2 and not hasLoot then
+				looted = true
+				break
+			end
+		end
+		task.wait()
+	end
+
+	local startCF = dr.main.CFrame
+	for i = 1, 10 do
+		if not dr.main or not dr.main.Parent then break end
+		dr.main.CFrame = startCF:Lerp(origCF, i / 10)
+		task.wait(1 / 60)
+	end
+	if dr.main and dr.main.Parent then
+		dr.main.CFrame = origCF
+		dr.main.AssemblyLinearVelocity = Vector3.zero
+		dr.main.AssemblyAngularVelocity = Vector3.zero
+		dr.main.Anchored = origAnch
+	end
+	if dr.activatePrompt and dr.activatePrompt.Parent then
+		dr.activatePrompt.Enabled = true
+	end
+	return looted
+end
+
+BringBox:AddToggle("BringDrawers", {
+	Text = "Bring Drawers",
+	Default = false,
+	Tooltip = "Mang ngăn kéo đến vị trí người chơi",
+	Callback = function(Value)
+		if BringDrawerConn then
+			task.cancel(BringDrawerConn)
+			BringDrawerConn = nil
+		end
+		if not Value then
+			BroughtDrawers = {}
+			cachedDrawerRoom = nil
+			lastRoomNum = nil
+			return
+		end
+		BroughtDrawers = {}
+		cachedDrawerRoom = nil
+		lastRoomNum = nil
+		BringDrawerConn = task.spawn(function()
+			while Toggles.BringDrawers and Toggles.BringDrawers.Value do
+				local maxDist = (Options.BringDrawersRange and Options.BringDrawersRange.Value) or 45
+				local drawers = LeafFindAllDrawers(maxDist)
+				for _, dr in ipairs(drawers) do
+					if not (Toggles.BringDrawers and Toggles.BringDrawers.Value) then break end
+					local ok = pcall(LeafBringOneDrawer, dr)
+					if ok then
+						BroughtDrawers[dr.model] = true
+					end
+				end
+				task.wait(0.05)
+			end
+		end)
+	end,
+})
+
+BringBox:AddSlider("BringDrawersRange", {
+	Text = "Bring Drawers Range",
+	Default = 45,
+	Min = 10,
+	Max = 80,
+	Rounding = 0,
+	Suffix = " studs",
+})
+-- ===== hết Bring Drawers =====
 local BringItemNames = {
 	Key = true, KeyObtain = true,
 	Vitamin = true, Vitamins = true,
