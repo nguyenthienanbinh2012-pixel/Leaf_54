@@ -46,7 +46,7 @@ print("Leaf Hub 『 Already Loaded 』")
 end
 return end
 game:GetService("Players").LocalPlayer:SetAttribute("LeafLoaded",true)
-local LibraryName = '🌿 Leaf Hub'
+local LibraryName = 'Leaf Hub'
 repeat task.wait() until LocalPlayer.Character
 getgenv().ScriptLibrary = "Obsidian"
 local repo = 'https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/'
@@ -54,7 +54,7 @@ if not getgenv().Library then
 	getgenv().Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
 end
 pcall(function()
-	Library.Scheme.Font = Font.fromEnum(Enum.Font.Gotham)
+	Library.Scheme.Font = Font.fromEnum(Enum.Font.GothamMedium)
 end)
 Library.ForceCheckbox = false
 Library.Scheme.AccentColor = Color3.fromRGB(40, 220, 160) -- xanh lá dương
@@ -68,7 +68,7 @@ elseif Library.UpdateColors then
 	Library:UpdateColors()
 end
 pcall(function()
-	Library:SetDPIScale(95)
+	Library:SetDPIScale(100)
 end)
 local ThemeManager, SaveManager
 pcall(function() ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))() end)
@@ -137,7 +137,7 @@ end)
 local Window = Library:CreateWindow({
 	Title = "Leaf Hub",
 	Icon = LeafLogoAsset or "leaf",
-	IconSize = UDim2.fromOffset(50, 50),
+	IconSize = UDim2.fromOffset(47, 47),
 	Center = true,
 	ToggleKeybind = Enum.KeyCode.RightControl,
 	AutoShow = true,
@@ -520,8 +520,8 @@ end,
 })
 MenuGroup:AddDivider()
 MenuGroup:AddDropdown("DPIDropdown", {
-Values = { "50%", "75%","95%","100%", "125%", "150%", "175%", "200%" },
-Default = "95%",
+Values = { "50%", "75%", "100%", "125%", "150%", "175%", "200%" },
+Default = "100%",
 Text = "DPI Scale",
 Callback = function(Value)
 Value = Value:gsub("%%", "")
@@ -555,54 +555,6 @@ SaveManager:BuildConfigSection(Tabs['Settings'])
 end
 if ThemeManager then
 ThemeManager:ApplyToTab(Tabs['Settings'])
--- Settings: Gaming Menu Mode
-do
-	local SettingsUI = Tabs.Settings:AddLeftGroupbox("UI Mode", "monitor")
-	SettingsUI:AddToggle("GamingMenuMode", {
-		Text = "Gaming Menu Mode",
-		Default = getgenv().LeafGamingMenuMode == true,
-		Tooltip = "Kích hoạt Menu Gaming,Có thể làm Cấu hình Menu Lag hơn,chậm hơn.",
-		Callback = function(Value)
-			getgenv().LeafGamingMenuMode = Value and true or false
-
-			-- Áp ngay: màu + anim + font (checkbox cần reload)
-			Library.ForceCheckbox = Value
-			Library.Animations = {
-				ToggleWindow = Value,
-				TabSwitch = Value,
-				Groupbox = Value,
-				Dropdown = Value,
-				KeyPicker = Value,
-			}
-			if Value then
-				pcall(function()
-					Library.Scheme.Font = Font.fromEnum(Enum.Font.GothamMedium)
-				end)
-				Library.Scheme.AccentColor = Color3.fromRGB(0, 180, 255) -- xanh lam tươi
-			else
-				pcall(function()
-					Library.Scheme.Font = Font.fromEnum(Enum.Font.Code)
-				end)
-				Library.Scheme.AccentColor = Color3.fromRGB(27, 255, 20) -- xanh lá Leaf
-			end
-			if Library.UpdateColorsUsingRegistry then
-				Library:UpdateColorsUsingRegistry()
-			elseif Library.UpdateColors then
-				Library:UpdateColors()
-			end
-
-			if Notify then
-				Notify(
-					Value
-						and "Gaming Mode: màu/anim OK."
-						or "Đã tắt Gaming Mode. Re-execute nếu muốn switch style cũ.",
-					5
-				)
-			end
-		end,
-	})
-	end
-end
 Notify("Successfully Loaded for Game |  DOORS Lobby ",4)
 else
 local function GetDistanceToPlayer(Pos)
@@ -3931,6 +3883,119 @@ MinesFloor:AddToggle("AntiPipeGap", {
 		end)
 	end,
 })
+-- ===== Auto Bypass The Ladder =====
+local AutoLadderConn = nil
+MinesFloor:AddToggle("AutoBypassLadder", {
+	Text = "Auto Bypass The Ladder",
+	Default = false,
+	Risky = true,
+	Tooltip = "Tự động Bypass Anti-Cheat khi thang ở gần phạm vi",
+	Callback = function(Value)
+		if AutoLadderConn then
+			task.cancel(AutoLadderConn)
+			AutoLadderConn = nil
+		end
+		if not Value then return end
+
+		AutoLadderConn = task.spawn(function()
+			local done = {}
+			while Toggles.AutoBypassLadder and Toggles.AutoBypassLadder.Value do
+				local char = LocalPlayer.Character
+				local root = char and char:FindFirstChild("HumanoidRootPart")
+				local hum = char and char:FindFirstChildOfClass("Humanoid")
+				if not root or not hum then
+					task.wait(0.3)
+					continue
+				end
+
+				local best, bestDist, bestPrompt = nil, 225, nil
+				local function scan(parent)
+					if not parent then return end
+					for _, d in ipairs(parent:GetDescendants()) do
+						local n = string.lower(d.Name)
+						if n:find("ladder") then
+							local part = d:IsA("BasePart") and d
+								or (d:IsA("Model") and (d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")))
+							local pr = d:FindFirstChildWhichIsA("ProximityPrompt", true)
+							if part and pr and not done[d] then
+								local dist = (part.Position - root.Position).Magnitude
+								if dist <= 225 and dist < bestDist then
+									best, bestDist, bestPrompt = part, dist, pr
+								end
+							end
+						end
+					end
+				end
+				scan(workspace:FindFirstChild("CurrentRooms"))
+				scan(workspace)
+
+				if best and bestPrompt then
+					local oldCF = root.CFrame
+					local oldVel = root.AssemblyLinearVelocity
+					local oldAng = root.AssemblyAngularVelocity
+					local fire = Firepp or fireproximityprompt
+
+					-- Pivot tới thang (lặp 0.1s đến khi gần)
+					for _ = 1, 40 do
+						if not (Toggles.AutoBypassLadder and Toggles.AutoBypassLadder.Value) then break end
+						char:PivotTo(best.CFrame * CFrame.new(0, 1, 2))
+						root.AssemblyLinearVelocity = Vector3.zero
+						root.AssemblyAngularVelocity = Vector3.zero
+						if (root.Position - best.Position).Magnitude < 6 then break end
+						task.wait(0.1)
+					end
+					root.AssemblyLinearVelocity = Vector3.zero
+					root.AssemblyAngularVelocity = Vector3.zero
+
+					if fire then
+						pcall(fire, bestPrompt)
+					end
+
+					pcall(function()
+						hum:ChangeState(Enum.HumanoidStateType.Climbing)
+						hum:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+					end)
+					task.wait(0.25)
+					pcall(function()
+						hum:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+						hum:ChangeState(Enum.HumanoidStateType.Freefall)
+					end)
+
+					-- Về chỗ cũ + khôi phục velocity
+					char:PivotTo(oldCF)
+					root.AssemblyLinearVelocity = oldVel
+					root.AssemblyAngularVelocity = oldAng
+
+					done[best.Parent or best] = true
+					if Notify then Notify("Auto Bypass Ladder: Success!", 3) end
+					pcall(function()
+						local s = Instance.new("Sound", game:GetService("SoundService"))
+						s.SoundId = "rbxassetid://4612375233"
+						s.Volume = 5
+						s:Play()
+						task.delay(2, function() s:Destroy() end)
+					end)
+					task.wait(0.5)
+				else
+					task.wait(0.35)
+				end
+			end
+		end)
+	end,
+})
+
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.AutoBypassLadder
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(255,40,40)">Auto Bypass The Ladder</font>'
+		end
+	end)
+end)
 RoomsFloor:AddToggle('AutoRooms',{
 Text = "Auto A-1000",
 Default = false,
