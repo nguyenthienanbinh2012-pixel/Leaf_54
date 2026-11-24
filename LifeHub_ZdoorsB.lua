@@ -554,7 +554,8 @@ SaveManager:SetFolder("LeafHub/DOORSLOBBY")
 SaveManager:BuildConfigSection(Tabs['Settings'])
 end
 if ThemeManager then
-ThemeManager:ApplyToTab(Tabs['Settings'])
+	ThemeManager:ApplyToTab(Tabs['Settings'])
+end
 Notify("Successfully Loaded for Game |  DOORS Lobby ",4)
 else
 local function GetDistanceToPlayer(Pos)
@@ -721,9 +722,11 @@ Barrier.CanCollide = true
 end
 end
 end
-if Require then
-RequiredMainGame = require(MainGame)
-end
+if Require and MainGame and typeof(MainGame) == "Instance" then
+	pcall(function()
+		RequiredMainGame = require(MainGame)
+	end)
+	end
 local getcons = getconnections or get_signal_cons or get_relative_connections
 if getcons then
 for _, con in pairs(getcons(LocalPlayer.Idled)) do
@@ -735,7 +738,16 @@ end
 table.insert(Connections,LocalPlayer.CharacterAdded:Connect(function()
 task.wait(1.5)
 if LocalPlayer.Character then
-MainGame = LocalPlayer.PlayerGui.MainUI.Initiator:WaitForChild("Main_Game")
+local ui = LocalPlayer:FindFirstChild("PlayerGui")
+local mainUI = ui and ui:FindFirstChild("MainUI")
+local init = mainUI and mainUI:FindFirstChild("Initiator")
+MainGame = init and init:WaitForChild("Main_Game", 10)
+if MainGame then
+	RemoteListener = MainGame:FindFirstChild("RemoteListener")
+end
+if Require and MainGame then
+	pcall(function() RequiredMainGame = require(MainGame) end)
+					end
 RemoteListener = MainGame.RemoteListener
 params.FilterDescendantsInstances = {LocalPlayer.Character}
 if Toggles.NoScenes.Value then
