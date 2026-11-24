@@ -3865,20 +3865,57 @@ task.defer(function()
 	end)
 end)
 
+local AntiPipeGapConn = nil
+local AntiPipeGapStore = {} -- [part] = {CanTouch, CanCollide}
+
 MinesFloor:AddToggle("AntiPipeGap", {
 	Text = "Anti Pipe-Gap",
 	Default = false,
-	Tooltip = "Chống Kill Brick ở khe hở ống",
+	Tooltip = "Chống Kill brick Khe ống Mine",
 	Callback = function(Value)
-		pcall(function()
-			for _, d in ipairs(workspace:GetDescendants()) do
-				local n = string.lower(d.Name)
-				if n:find("pipe") or n:find("gap") then
-					if d:IsA("BasePart") then
-						d.CanTouch = not Value
-						if Value then d.CanCollide = true end
+		if AntiPipeGapConn then
+			task.cancel(AntiPipeGapConn)
+			AntiPipeGapConn = nil
+		end
+		if not Value then
+			for part, data in pairs(AntiPipeGapStore) do
+				pcall(function()
+					if part and part.Parent then
+						part.CanTouch = data.CanTouch
+						part.CanCollide = data.CanCollide
+					end
+				end)
+			end
+			table.clear(AntiPipeGapStore)
+			return
+		end
+		AntiPipeGapConn = task.spawn(function()
+			while Toggles.AntiPipeGap and Toggles.AntiPipeGap.Value do
+				local rooms = workspace:FindFirstChild("CurrentRooms")
+				local roots = { workspace }
+				if rooms then table.insert(roots, rooms) end
+				for _, root in ipairs(roots) do
+					for _, d in ipairs(root:GetDescendants()) do
+						if d:IsA("BasePart") then
+							local n = string.lower(d.Name)
+							local isGap = n:find("pipe") or n:find("gap") or n:find("kill")
+								or n:find("void") or n:find("fall") or n:find("damage")
+							-- part mỏng / trigger kiểu khe
+							local thin = d.Size.Y < 2 or d.Size.X < 3 or d.Size.Z < 3
+							if isGap or (thin and d.CanTouch and not d.Anchored) then
+								if not AntiPipeGapStore[d] then
+									AntiPipeGapStore[d] = {
+										CanTouch = d.CanTouch,
+										CanCollide = d.CanCollide,
+									}
+								end
+								d.CanTouch = false
+								d.CanCollide = false
+							end
+						end
 					end
 				end
+				task.wait(0.4)
 			end
 		end)
 	end,
@@ -6383,11 +6420,14 @@ BypassEntityBox:AddToggle("SemiGod", {
 		"EyesDamage", "LookmanDamage", "GloomEggDamage",
 		"FigureHearing", "AntiLag",
 		"AntiBanana", "AntiJeff", "AntiLava", "AntiWall", "AntiSeekFlood",
-		-- mới
 		"AntiAlma", "AntiDrone", "AntiNoise", "AntiMonument",
 		"AntiCurrents", "AntiVacuum",
-		"LowerPositionTV", "BypassOverthrowTV",
-	}
+		"LowerPositionTV",
+		"AntiHaste", "AntiSally",
+		"AntiPipeGap",
+		"DisableEntityJumpScares", "DisableFiredampEffect",
+		"RemoveClosetDelay", "DisableIdleKickAFK",
+		}
 	for _, name in ipairs(list) do
 		if Toggles[name] then
 			pcall(function()
@@ -9227,14 +9267,13 @@ end,
 })
 MenuGroup:AddDivider()
 MenuGroup:AddDropdown("DPIDropdown", {
-Values = { "50%", "75%", "95%", "100%", "125%", "150%", "175%", "200%" },
-Default = "95%",
-Text = "DPI Scale",
-Callback = function(Value)
-Value = Value:gsub("%%", "")
-local DPI = tonumber(Value)
-Library:SetDPIScale(DPI)
-end,
+	Values = { "50%", "75%", "100%", "125%", "150%", "175%", "200%" },  -- bỏ "95%"
+	Default = "100%",
+	Text = "DPI Scale",
+	Callback = function(Value)
+		Value = Value:gsub("%%", "")
+		Library:SetDPIScale(tonumber(Value))
+	end,
 })
 -- ===== Show Watermark [Beta] =====
 local LeafWmLabel = nil
@@ -9550,4 +9589,5 @@ if ThemeManager then
 ThemeManager:ApplyToTab(Tabs['Settings'])
 end
 Notify("Successfully Loaded for Game |  DOORS ",4)
+end
 end
