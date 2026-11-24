@@ -520,8 +520,8 @@ end,
 })
 MenuGroup:AddDivider()
 MenuGroup:AddDropdown("DPIDropdown", {
-Values = { "50%", "75%", "100%", "125%", "150%", "175%", "200%" },
-Default = "100%",
+Values = { "50%", "75%","95%","100%", "125%", "150%", "175%", "200%" },
+Default = "95%",
 Text = "DPI Scale",
 Callback = function(Value)
 Value = Value:gsub("%%", "")
@@ -819,13 +819,95 @@ end
 end
 end))
 local Tabs = {
-Main = Window:AddTab('Player', "user"),
-Bypass = Window:AddTab('Bypass', "lock-keyhole"),
-Visuals = Window:AddTab('Visuals',"monitor"),
-Floor = Window:AddTab({ Name = "Floor", Icon = "building", SubTabs = true }),
-Other = Window:AddTab('Other', "drama"),
-Settings = Window:AddTab('Settings',"settings"),
-}
+	Info = Window:AddTab("Info", "crown"),
+	Main = Window:AddTab("Player", "user"),
+	Bypass = Window:AddTab("Bypass", "lock-keyhole"),
+	Visuals = Window:AddTab("Visuals", "monitor"),
+	Floor = Window:AddTab({ Name = "Floor", Icon = "building", SubTabs = true }),
+	Other = Window:AddTab("Other", "drama"),
+	Settings = Window:AddTab("Settings", "settings"),
+	}
+-- ===== Tab Info =====
+local ChangeLogBox = Tabs.Info:AddLeftGroupbox("Change Logs", "scroll-text")
+ChangeLogBox:AddLabel(
+	'<font color="rgb(50,255,80)">Leaf 54: Người Điều hành Leaf Hub và là người Chủ đứng đầu</font>',
+	true
+)
+ChangeLogBox:AddLabel(
+	'<font color="rgb(255,160,40)">Anxin54: Tên gọi khác trong công cuộc làm Raw</font>',
+	true
+)
+ChangeLogBox:AddLabel('<font color="rgb(200,200,200)">23/11/2026 Update:</font>', true)
+ChangeLogBox:AddLabel('<font color="rgb(50,255,80)">+Kill player Kill Players With Chairs</font>', true)
+ChangeLogBox:AddLabel('<font color="rgb(50,255,80)">+Kill Player With Figure</font>', true)
+ChangeLogBox:AddLabel('<font color="rgb(50,255,80)">+God mode Figure[MethodsV2]</font>', true)
+ChangeLogBox:AddLabel('<font color="rgb(50,255,80)">+Auto Damage Figure</font>', true)
+ChangeLogBox:AddLabel('<font color="rgb(50,255,80)">+Anti Sally[FE]</font>', true)
+ChangeLogBox:AddLabel('<font color="rgb(50,255,80)">+Anti Haste[Client, failure rate]</font>', true)
+
+local ExecBox = Tabs.Info:AddRightGroupbox("Executor Check", "cpu")
+do
+	local execName, execVer = "Unknown", "?"
+	pcall(function()
+		if identifyexecutor then
+			local a, b = identifyexecutor()
+			execName = tostring(a or "Unknown")
+			execVer = tostring(b or "?")
+		elseif getexecutorname then
+			execName = tostring(getexecutorname())
+		end
+	end)
+	ExecBox:AddLabel(
+		string.format('<font color="rgb(255,60,60)">Executor: %s</font>  <font color="rgb(200,200,200)">%s</font>', execName, execVer),
+		true
+	)
+
+	local checks = {
+		{ "getgenv", getgenv },
+		{ "fireproximityprompt", fireproximityprompt or Firepp },
+		{ "firetouchinterest", firetouchinterest },
+		{ "isnetworkowner", isnetworkowner },
+		{ "hookmetamethod", hookmetamethod },
+		{ "getnamecallmethod", getnamecallmethod },
+		{ "setclipboard", setclipboard },
+		{ "writefile", writefile },
+		{ "readfile", readfile },
+		{ "isfile", isfile },
+		{ "getconnections", getconnections },
+		{ "sethiddenproperty", sethiddenproperty },
+		{ "setsimulationradius", setsimulationradius },
+		{ "gethui", gethui },
+		{ "cloneref", cloneref },
+		{ "getcustomasset", getcustomasset },
+		{ "Drawing", Drawing },
+		{ "newcclosure", newcclosure },
+		{ "checkcaller", checkcaller },
+		{ "getgc", getgc },
+	}
+	local okCount, total = 0, #checks
+	for _, c in ipairs(checks) do
+		local ok = c[2] \~= nil
+		if ok then okCount += 1 end
+		local reason = ok and "" or " — thiếu trên executor"
+		ExecBox:AddLabel(
+			string.format("%s %s%s", ok and "✅" or "❌", c[1], reason),
+			true
+		)
+	end
+	local ratio = okCount / total
+	if ratio < 0.35 then -- thiếu ≥65%
+		local msg = string.format(
+			"Executor hỗ trợ %d/%d hàm (%.0f%%). Leaf Hub yêu cầu nhiều API hơn.",
+			okCount, total, ratio * 100
+		)
+		pcall(function()
+			if Library and Library.Unload then Library:Unload() end
+		end)
+		task.delay(0.5, function()
+			LocalPlayer:Kick(msg)
+		end)
+	end
+	end
 local PrankBox = Tabs.Other:AddLeftGroupbox("Prank","wand-sparkles")
 -- Animation Twerk (mspaint id)
 local TwerkAnim = Instance.new("Animation")
@@ -1073,19 +1155,28 @@ BringBox:AddSlider("OrbitDroppedItemsSpeed", {
 	Rounding = 1,
 	Compact = false,
 })
--- ===== Kill with Chair (Achiever only) =====
+-- ===== Kill with Chair — BodyPosition x8 =====
 local KillChairConn = nil
-local KillChairAligns = {}
+local KillChairForces = {} -- BodyPosition instances
+
+local CHAIR_PART_NAMES = {
+	"Collider", "ColliderRampFront", "ColliderWheels", "Seat",
+	"Arms", "Base", "Metal", "PromptBlocker",
+}
 
 local function KillChairCleanup()
-	for _, o in ipairs(KillChairAligns) do
+	for _, bp in ipairs(KillChairForces) do
 		pcall(function()
-			if o and o.Destroy then o:Destroy() end
+			if bp and bp.Parent then bp:Destroy() end
 		end)
 	end
-	table.clear(KillChairAligns)
+	table.clear(KillChairForces)
 	if KillChairConn then
-		task.cancel(KillChairConn)
+		if typeof(KillChairConn) == "RBXScriptConnection" then
+			KillChairConn:Disconnect()
+		else
+			task.cancel(KillChairConn)
+		end
 		KillChairConn = nil
 	end
 end
@@ -1120,7 +1211,7 @@ BringBox:AddToggle("KillPlayerWithChair", {
 	Text = "Kill the player With a Chair",
 	Default = false,
 	Risky = true,
-	Tooltip = "Kill người chơi bằng ghế — chỉ Floor Achiever; mọi ghế có Prompt",
+	Tooltip = "Giết người chơi khác bằng ghế,Chỉ hoạt động Floor Achiever",
 	Callback = function(Value)
 		KillChairCleanup()
 		if not Value then return end
@@ -1128,154 +1219,125 @@ BringBox:AddToggle("KillPlayerWithChair", {
 		local floorVal = Floor and Floor.Value
 		if floorVal ~= "Achiever" and floorVal ~= "The Achiever" and floorVal ~= "Achiver" then
 			if Notify then Notify("Kill Chair: chỉ Floor Achiever!", 3) end
-			if Toggles.KillPlayerWithChair then
-				Toggles.KillPlayerWithChair:SetValue(false)
-			end
+			if Toggles.KillPlayerWithChair then Toggles.KillPlayerWithChair:SetValue(false) end
 			return
 		end
 
-		KillChairConn = task.spawn(function()
-			while Toggles.KillPlayerWithChair and Toggles.KillPlayerWithChair.Value do
-				local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-				if not myRoot then
-					task.wait(0.3)
-					continue
-				end
+		KillChairConn = RunService.Heartbeat:Connect(function()
+			if not (Toggles.KillPlayerWithChair and Toggles.KillPlayerWithChair.Value) then
+				KillChairCleanup()
+				return
+			end
 
-				local sel = Options.KillChairTarget and Options.KillChairTarget.Value or "Nearest"
-				local targetPlr = nil
-				if sel == "Nearest" or sel == "" or not sel then
-					local best, bd = nil, 325
-					for _, plr in ipairs(Players:GetPlayers()) do
-						if plr ~= LocalPlayer then
-							local r = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
-							if r then
-								local d = (r.Position - myRoot.Position).Magnitude
-								if d < bd then
-									best = plr
-									bd = d
-								end
-							end
-						end
-					end
-					targetPlr = best
-				else
-					local name = string.gsub(sel, "^★ YOU %(cẩn thận%): ", "")
-					targetPlr = Players:FindFirstChild(name)
-				end
+			local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+			if not myRoot then return end
 
-				if not targetPlr or not targetPlr.Character then
-					task.wait(0.4)
-					continue
-				end
-
-				local tHum = targetPlr.Character:FindFirstChildOfClass("Humanoid")
-				local tRoot = targetPlr.Character:FindFirstChild("HumanoidRootPart")
-				if not tHum or not tRoot then
-					task.wait(0.3)
-					continue
-				end
-				if tHum.Health <= 0 then
-					if Notify then Notify("Kill Player: " .. targetPlr.Name .. " Success ✅!", 4) end
-					Toggles.KillPlayerWithChair:SetValue(false)
-					KillChairCleanup()
-					break
-				end
-
-				-- MỌI ghế có ProximityPrompt (không giới hạn khoảng cách)
-				local chairs = {}
-				local function scan(parent)
-					if not parent then return end
-					for _, d in ipairs(parent:GetDescendants()) do
-						if d:IsA("Model") or d:IsA("BasePart") then
-							local n = string.lower(d.Name)
-							if string.find(n, "chair", 1, true) then
-								local part = d:IsA("BasePart") and d or d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
-								local pr = d:FindFirstChildWhichIsA("ProximityPrompt", true)
-								if part and pr then
-									table.insert(chairs, { model = d, part = part, prompt = pr })
-								end
-							end
+			local sel = Options.KillChairTarget and Options.KillChairTarget.Value or "Nearest"
+			local targetPlr = nil
+			if sel == "Nearest" or sel == "" then
+				local best, bd = nil, 325
+				for _, plr in ipairs(Players:GetPlayers()) do
+					if plr ~= LocalPlayer then
+						local r = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+						if r then
+							local d = (r.Position - myRoot.Position).Magnitude
+							if d < bd then best, bd = plr, d end
 						end
 					end
 				end
-				scan(workspace)
-				local rooms = workspace:FindFirstChild("CurrentRooms")
-				if rooms then scan(rooms) end
+				targetPlr = best
+			else
+				local name = string.gsub(sel, "^★ YOU %(cẩn thận%): ", "")
+				targetPlr = Players:FindFirstChild(name)
+			end
+			if not targetPlr or not targetPlr.Character then return end
+			local tHum = targetPlr.Character:FindFirstChildOfClass("Humanoid")
+			local tRoot = targetPlr.Character:FindFirstChild("HumanoidRootPart")
+			if not tHum or not tRoot then return end
+			if tHum.Health <= 0 then
+				if Notify then Notify("Kill Player: " .. targetPlr.Name .. " Success! ✅", 4) end
+				pcall(function()
+					local s = Instance.new("Sound", game:GetService("SoundService"))
+					s.SoundId = "rbxassetid://4612375233"
+					s.Volume = 5
+					s:Play()
+					task.delay(2, function() s:Destroy() end)
+				end)
+				Toggles.KillPlayerWithChair:SetValue(false)
+				KillChairCleanup()
+				return
+			end
 
-				if #chairs == 0 then
-					task.wait(0.5)
-					continue
-				end
-
-				local fire = Firepp or fireproximityprompt
-				for i = 1, math.min(3, #chairs) do
-					local c = chairs[i]
-					if fire and c.prompt then
-						for _ = 1, 5 do
-							pcall(fire, c.prompt)
-							task.wait(0.05)
+			-- Mọi ghế có Prompt (không giới hạn khoảng cách)
+			local chairs = {}
+			local function scan(parent)
+				if not parent then return end
+				for _, d in ipairs(parent:GetDescendants()) do
+					if d:IsA("Model") then
+						local n = string.lower(d.Name)
+						if string.find(n, "chair", 1, true) then
+							local pr = d:FindFirstChildWhichIsA("ProximityPrompt", true)
+							if pr then table.insert(chairs, d) end
 						end
 					end
-					pcall(function()
-						local part = c.part
-						if not part then return end
-						part.Anchored = false
-						local att0 = part:FindFirstChild("LeafKillAtt0")
-						if not att0 then
-							att0 = Instance.new("Attachment")
-							att0.Name = "LeafKillAtt0"
-							att0.Parent = part
-						end
-						local att1 = tRoot:FindFirstChild("LeafKillAtt1")
-						if not att1 then
-							att1 = Instance.new("Attachment")
-							att1.Name = "LeafKillAtt1"
-							att1.Parent = tRoot
-						end
-						local ap = part:FindFirstChild("LeafKillAlignPos")
-						if not ap then
-							ap = Instance.new("AlignPosition")
-							ap.Name = "LeafKillAlignPos"
-							ap.Attachment0 = att0
-							ap.Attachment1 = att1
-							ap.RigidityEnabled = false
-							ap.ApplyAtCenterOfMass = true
-							ap.MaxForce = 1e9
-							ap.MaxVelocity = 1e4
-							ap.Responsiveness = 200
-							ap.Parent = part
-						else
-							ap.Attachment1 = att1
-							ap.MaxForce = 1e9
-							ap.Responsiveness = 200
-						end
-						local ao = part:FindFirstChild("LeafKillAlignOri")
-						if not ao then
-							ao = Instance.new("AlignOrientation")
-							ao.Name = "LeafKillAlignOri"
-							ao.Attachment0 = att0
-							ao.Attachment1 = att1
-							ao.MaxTorque = 1e9
-							ao.Responsiveness = 200
-							ao.Parent = part
-						end
-						table.insert(KillChairAligns, ap)
-						table.insert(KillChairAligns, ao)
-						table.insert(KillChairAligns, att0)
-						table.insert(KillChairAligns, att1)
-					end)
-				end
-
-				task.wait(0.35)
-				if tHum.Health <= 0 then
-					if Notify then Notify("Kill Player: " .. targetPlr.Name .. " Success ✅!", 4) end
-					Toggles.KillPlayerWithChair:SetValue(false)
-					KillChairCleanup()
-					break
 				end
 			end
-			KillChairCleanup()
+			scan(workspace)
+			local rooms = workspace:FindFirstChild("CurrentRooms")
+			if rooms then scan(rooms) end
+			if #chairs == 0 then return end
+
+			local fire = Firepp or fireproximityprompt
+			local targetPos = tRoot.Position
+
+			for i = 1, math.min(3, #chairs) do
+				local chair = chairs[i]
+				local pr = chair:FindFirstChildWhichIsA("ProximityPrompt", true)
+				if fire and pr then
+					for _ = 1, 5 do pcall(fire, pr) end
+				end
+
+				local used = {}
+				for _, partName in ipairs(CHAIR_PART_NAMES) do
+					local part = chair:FindFirstChild(partName, true)
+					if part and part:IsA("BasePart") and not used[part] then
+						used[part] = true
+						part.Anchored = false
+						local bp = part:FindFirstChild("LeafChairForce")
+						if not bp then
+							bp = Instance.new("BodyPosition")
+							bp.Name = "LeafChairForce"
+							bp.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+							bp.P = 1e5
+							bp.D = 1e3
+							bp.Parent = part
+							table.insert(KillChairForces, bp)
+						end
+						-- offset lệch nhẹ mỗi part → dao động mạnh
+						local ox = (math.random() - 0.5) * 12
+						local oy = (math.random() - 0.5) * 8
+						local oz = (math.random() - 0.5) * 12
+						bp.Position = targetPos + Vector3.new(ox, oy, oz)
+					end
+				end
+				-- fallback: mọi BasePart nếu thiếu tên
+				if next(used) == nil then
+					for _, part in ipairs(chair:GetDescendants()) do
+						if part:IsA("BasePart") and not used[part] then
+							used[part] = true
+							part.Anchored = false
+							local bp = part:FindFirstChild("LeafChairForce") or Instance.new("BodyPosition")
+							bp.Name = "LeafChairForce"
+							bp.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+							bp.P = 1e5
+							bp.Parent = part
+							table.insert(KillChairForces, bp)
+							bp.Position = targetPos + Vector3.new(math.random(-6, 6), math.random(-4, 4), math.random(-6, 6))
+							if #KillChairForces >= 8 then break end
+						end
+					end
+				end
+			end
 		end)
 	end,
 })
@@ -1301,9 +1363,7 @@ task.spawn(function()
 		local floorVal = Floor and Floor.Value
 		local ok = (floorVal == "Achiever" or floorVal == "The Achiever" or floorVal == "Achiver")
 		t:SetDisabled(not ok)
-		if not ok and t.Value then
-			t:SetValue(false)
-		end
+		if not ok and t.Value then t:SetValue(false) end
 	end
 end)
 local BringItemNames = {
@@ -8901,14 +8961,142 @@ end,
 })
 MenuGroup:AddDivider()
 MenuGroup:AddDropdown("DPIDropdown", {
-Values = { "50%", "75%", "100%", "125%", "150%", "175%", "200%" },
-Default = "100%",
+Values = { "50%", "75%", "95%", "100%", "125%", "150%", "175%", "200%" },
+Default = "95%",
 Text = "DPI Scale",
 Callback = function(Value)
 Value = Value:gsub("%%", "")
 local DPI = tonumber(Value)
 Library:SetDPIScale(DPI)
 end,
+})
+-- ===== Show Watermark [Beta] =====
+local LeafWmLabel = nil
+local LeafWmConn = nil
+local LeafWmFrameCount, LeafWmFrameTime, LeafWmFPS = 0, 0, 60
+local LeafWmCachedPingStat = nil
+
+local FLOOR_META = {
+	Hotel = { color = "rgb(80,180,255)", icon = "hotel" },
+	Hotels = { color = "rgb(80,180,255)", icon = "hotel" },
+	Mines = { color = "rgb(180,140,80)", icon = "pickaxe" },
+	Mine = { color = "rgb(180,140,80)", icon = "pickaxe" },
+	Outdoors = { color = "rgb(80,220,120)", icon = "trees" },
+	Backdoor = { color = "rgb(160,120,255)", icon = "clock" },
+	OldHotel = { color = "rgb(120,160,200)", icon = "building-2" },
+	Achiever = { color = "rgb(255,180,80)", icon = "graduation-cap" },
+	Achiver = { color = "rgb(255,180,80)", icon = "graduation-cap" },
+	Stairwell = { color = "rgb(200,200,120)", icon = "stairs" },
+	Fools = { color = "rgb(255,100,100)", icon = "brick-wall" },
+}
+
+local function LeafGetFPSColor(fps)
+	if fps >= 45 then return "rgb(50,220,90)" end
+	if fps >= 30 then return "rgb(255,200,40)" end
+	return "rgb(255,60,60)"
+end
+
+local function LeafGetPingColor(ms)
+	if ms <= 80 then return "rgb(50,220,90)" end
+	if ms <= 150 then return "rgb(255,200,40)" end
+	return "rgb(255,60,60)"
+end
+
+local function LeafGetRealPing()
+	local ping = 0
+	pcall(function()
+		local stats = game:GetService("Stats")
+		local net = stats:FindFirstChild("Network")
+		local ssi = net and net:FindFirstChild("ServerStatsItem")
+		if not LeafWmCachedPingStat and ssi then
+			LeafWmCachedPingStat = ssi:FindFirstChild("Data Ping")
+		end
+		if LeafWmCachedPingStat and LeafWmCachedPingStat.GetValue then
+			ping = LeafWmCachedPingStat:GetValue()
+		end
+	end)
+	if not ping or ping <= 0 then
+		pcall(function()
+			ping = (LocalPlayer:GetNetworkPing() or 0) * 1000
+		end)
+	end
+	return math.max(1, math.floor(ping))
+end
+
+local function LeafFloorLabel()
+	local fv = "?"
+	pcall(function()
+		fv = tostring(Floor and Floor.Value or ReplicatedStorage.GameData.Floor.Value)
+	end)
+	local meta = FLOOR_META[fv] or { color = "rgb(160,200,255)", icon = "layers" }
+	return fv, meta.color, meta.icon
+end
+
+MenuGroup:AddToggle("ShowWatermarkBeta", {
+	Text = "Show Watermark [Beta]",
+	Default = false,
+	Tooltip = "Player | Floor | FPS | Ping Đo chỉ số",
+	Callback = function(Value)
+		if LeafWmConn then
+			LeafWmConn:Disconnect()
+			LeafWmConn = nil
+		end
+		if LeafWmLabel then
+			pcall(function()
+				if LeafWmLabel.Destroy then LeafWmLabel:Destroy() end
+			end)
+			LeafWmLabel = nil
+		end
+		if not Value then return end
+
+		local logoIcon = LeafLogoAsset or ""
+		LeafWmLabel = Library:AddDraggableLabel({
+			Text = "Leaf Hub",
+			Icon = logoIcon,
+			IconPosition = "left",
+		})
+
+		LeafWmFrameCount, LeafWmFrameTime, LeafWmFPS = 0, 0, 60
+		local lastUi = 0
+
+		LeafWmConn = RunService.RenderStepped:Connect(function(dt)
+			LeafWmFrameCount += 1
+			LeafWmFrameTime += dt
+			if LeafWmFrameTime >= 1 then
+				LeafWmFPS = math.clamp(math.floor(LeafWmFrameCount / LeafWmFrameTime), 1, 999)
+				LeafWmFrameCount = 0
+				LeafWmFrameTime = 0
+			end
+			if tick() - lastUi < 1 then return end
+			lastUi = tick()
+
+			local ping = LeafGetRealPing()
+			local floorName, floorColor = LeafFloorLabel()
+			local fpsC = LeafGetFPSColor(LeafWmFPS)
+			local pingC = LeafGetPingColor(ping)
+			local name = LocalPlayer.DisplayName or LocalPlayer.Name
+
+			-- RichText: tên | Floor màu | FPS màu | Ping màu
+			local text = string.format(
+				'<font color="rgb(230,255,245)">%s</font> | <font color="%s">Floor: %s</font> | <font color="%s">FPS: %d</font> | <font color="%s">Ping: %dms</font>',
+				name,
+				floorColor,
+				floorName,
+				fpsC,
+				LeafWmFPS,
+				pingC,
+				ping
+			)
+			pcall(function()
+				if LeafWmLabel.SetText then
+					LeafWmLabel:SetText(text)
+				end
+				if LeafWmLabel.SetIcon and logoIcon ~= "" then
+					LeafWmLabel:SetIcon(logoIcon)
+				end
+			end)
+		end)
+	end,
 })
 UtilityBox:AddButton({
 Text = "Unload Hub",
