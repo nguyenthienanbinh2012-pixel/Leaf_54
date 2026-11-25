@@ -1926,7 +1926,7 @@ task.spawn(function()
 	local function refresh()
 		local vals = { "Nearest" }
 		for _, plr in ipairs(Players:GetPlayers()) do
-			if plr \~= LocalPlayer then
+			if plr ~= LocalPlayer then
 				table.insert(vals, plr.Name)
 			end
 		end
@@ -2691,7 +2691,7 @@ end)
 KillPlayerBox:AddToggle("DeleteOtherTools", {
 	Text = "Delete Other People's Tools",
 	Default = false,
-	Tooltip = "Risk! Ép Tool/item Người Chơi khác Rơi+Phá Hủy thông Qua Pivot Set-Y, có Không khả Thi!",
+	Tooltip = "Risk! Ép Tool/item Người Chơi khác Rơi+Phá Hủy thông Qua Pivot Set-Y, có thể Không khả Thi!",
 	Callback = function(Value)
 		if not Value then return end
 		task.spawn(function()
@@ -4244,6 +4244,265 @@ task.defer(function()
 		end
 	end)
 end)
+-- ===== Mines Cart tools =====
+local function LeafIsMinesFloor()
+	local fv = Floor and Floor.Value
+	return fv == "Mines" or fv == "Mine" or fv == "The Mines"
+end
+
+local function LeafMinesDisableLoop()
+	task.spawn(function()
+		while task.wait(1) do
+			for _, name in ipairs({ "DestroyTheCart", "MinecraftCartFlatten", "NonDamagingCart" }) do
+				local t = Toggles[name]
+				if t and t.SetDisabled then
+					local ok = LeafIsMinesFloor()
+					t:SetDisabled(not ok)
+					if not ok and t.Value then t:SetValue(false) end
+				end
+			end
+		end
+	end)
+end
+LeafMinesDisableLoop()
+
+local function LeafInSeekChase()
+	-- không quét trong màn Seek / Seek 2
+	if workspace:FindFirstChild("SeekMoving") or workspace:FindFirstChild("SeekMoving2") then
+		return true
+	end
+	local rooms = workspace:FindFirstChild("CurrentRooms")
+	local n = tonumber(LocalPlayer:GetAttribute("CurrentRoom"))
+	if rooms and n then
+		local room = rooms:FindFirstChild(tostring(n))
+		if room and (room:FindFirstChild("SeekTrigger", true) or room:GetAttribute("Seek")) then
+			return true
+		end
+	end
+	return false
+end
+
+local function LeafFindCarts()
+	local list = {}
+	if LeafInSeekChase() then return list end
+	local function add(m)
+		if not m then return end
+		local n = string.lower(m.Name)
+		if not (n:find("cart") or n:find("minecart") or n:find("minecraft")) then return end
+		if n:find("seek") then return end
+		local part = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+		if part then table.insert(list, m) end
+	end
+	local rooms = workspace:FindFirstChild("CurrentRooms")
+	if rooms then
+		for _, d in ipairs(rooms:GetDescendants()) do
+			if d:IsA("Model") then add(d) end
+		end
+	end
+	for _, d in ipairs(workspace:GetChildren()) do
+		if d:IsA("Model") then add(d) end
+	end
+	return list
+end
+
+-- 1) Destroy The Cart
+local DestroyCartConn = nil
+MinesFloor:AddToggle("DestroyTheCart", {
+	Text = "Destroy The Cart",
+	Default = false,
+	Tooltip = "Phá hủy xe đẩy Minecraft(không hoạt động màn Seek)",
+	Callback = function(Value)
+		if DestroyCartConn then task.cancel(DestroyCartConn) DestroyCartConn = nil end
+		if not Value then return end
+		if not LeafIsMinesFloor() then
+			if Notify then Notify("Destroy Cart: chỉ The Mines!", 3) end
+			Toggles.DestroyTheCart:SetValue(false)
+			return
+		end
+		DestroyCartConn = task.spawn(function()
+			while Toggles.DestroyTheCart and Toggles.DestroyTheCart.Value do
+				if LeafIsMinesFloor() and not LeafInSeekChase() then
+					for _, cart in ipairs(LeafFindCarts()) do
+						pcall(function()
+							for _, p in ipairs(cart:GetDescendants()) do
+								if p:IsA("BasePart") then
+									p.AssemblyLinearVelocity = Vector3.zero
+									p.AssemblyAngularVelocity = Vector3.zero
+								end
+							end
+							local pp = cart.PrimaryPart or cart:FindFirstChildWhichIsA("BasePart")
+							if pp then
+								cart:PivotTo(CFrame.new(pp.Position.X, -10000, pp.Position.Z))
+							end
+						end)
+						task.spawn(function()
+							task.wait(5)
+							local pp = cart.PrimaryPart or cart:FindFirstChildWhichIsA("BasePart")
+							if pp and pp.Position.Y < -500 then
+								if Notify then Notify("Destroy The Cart: Success!", 3) end
+								pcall(function()
+									local s = Instance.new("Sound", game:GetService("SoundService"))
+									s.SoundId = "rbxassetid://4612375233"
+									s.Volume = 5
+									s:Play()
+									task.delay(2, function() s:Destroy() end)
+								end)
+							end
+						end)
+					end
+				end
+				task.wait(0.35)
+			end
+		end)
+	end,
+})
+
+-- 2) Minecraft Cart Flatten (đỏ)
+local FlattenCartConn = nil
+MinesFloor:AddDropdown("CartFlattenTarget", {
+	Text = "Cart Flatten Target",
+	Default = "Nearest",
+	Values = { "Nearest" },
+})
+task.spawn(function()
+	task.wait(0.5)
+	local function refresh()
+		local vals = { "Nearest" }
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr ~= LocalPlayer then table.insert(vals, plr.Name) end
+		end
+		if Options.CartFlattenTarget and Options.CartFlattenTarget.SetValues then
+			Options.CartFlattenTarget:SetValues(vals)
+		end
+	end
+	refresh()
+	Players.PlayerAdded:Connect(refresh)
+	Players.PlayerRemoving:Connect(refresh)
+end)
+
+MinesFloor:AddToggle("MinecraftCartFlatten", {
+	Text = "Minecraft Cart Flatten",
+	Default = false,
+	Risky = true,
+	Tooltip = "Troll người khác thông qua xe đẩy Minecraft",
+	Callback = function(Value)
+		if FlattenCartConn then
+			FlattenCartConn:Disconnect()
+			FlattenCartConn = nil
+		end
+		if not Value then return end
+		if not LeafIsMinesFloor() then
+			if Notify then Notify("Cart Flatten: chỉ The Mines!", 3) end
+			Toggles.MinecraftCartFlatten:SetValue(false)
+			return
+		end
+		FlattenCartConn = RunService.Heartbeat:Connect(function()
+			if not (Toggles.MinecraftCartFlatten and Toggles.MinecraftCartFlatten.Value) then return end
+			if not LeafIsMinesFloor() then return end
+
+			local sel = Options.CartFlattenTarget and Options.CartFlattenTarget.Value or "Nearest"
+			local target = nil
+			local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+			if sel == "Nearest" or sel == "" then
+				local best, bd = nil, 1e9
+				for _, plr in ipairs(Players:GetPlayers()) do
+					if plr ~= LocalPlayer then
+						local r = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+						if r and myRoot then
+							local d = (r.Position - myRoot.Position).Magnitude
+							if d < bd then best, bd = plr, d end
+						elseif r and not myRoot then
+							best = plr
+						end
+					end
+				end
+				target = best
+			else
+				target = Players:FindFirstChild(sel)
+			end
+			if not target or not target.Character then
+				Toggles.MinecraftCartFlatten:SetValue(false)
+				return
+			end
+			local head = target.Character:FindFirstChild("Head")
+				or target.Character:FindFirstChild("UpperTorso")
+				or target.Character:FindFirstChild("Torso")
+				or target.Character:FindFirstChild("HumanoidRootPart")
+			if not head then return end
+			local dest = head.Position - Vector3.new(0, 1.5, 0)
+
+			for _, cart in ipairs(LeafFindCarts()) do
+				pcall(function()
+					for _, p in ipairs(cart:GetDescendants()) do
+						if p:IsA("BasePart") then
+							p.AssemblyLinearVelocity = Vector3.zero
+							p.AssemblyAngularVelocity = Vector3.zero
+						end
+					end
+					cart:PivotTo(CFrame.new(dest))
+				end)
+			end
+		end)
+	end,
+})
+
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.MinecraftCartFlatten
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(255,40,40)">Minecraft Cart Flatten</font>'
+		end
+	end)
+end)
+
+-- 3) Non-damaging Cart (≤10 studs)
+local NonDmgCartConn = nil
+local NonDmgRenamed = {}
+MinesFloor:AddToggle("NonDamagingCart", {
+	Text = "Non-damaging Cart",
+	Default = false,
+	Tooltip = "Vô hiệu hoá sát thương xe đẩy Minecraft",
+	Callback = function(Value)
+		if NonDmgCartConn then task.cancel(NonDmgCartConn) NonDmgCartConn = nil end
+		if not Value then return end
+		if not LeafIsMinesFloor() then
+			Toggles.NonDamagingCart:SetValue(false)
+			return
+		end
+		NonDmgCartConn = task.spawn(function()
+			while Toggles.NonDamagingCart and Toggles.NonDamagingCart.Value do
+				local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+				if root and LeafIsMinesFloor() then
+					for _, cart in ipairs(LeafFindCarts()) do
+						local pp = cart.PrimaryPart or cart:FindFirstChildWhichIsA("BasePart")
+						if pp and (pp.Position - root.Position).Magnitude <= 10 then
+							pcall(function()
+								for _, p in ipairs(cart:GetDescendants()) do
+									if p:IsA("BasePart") then
+										p.CanCollide = false
+										p.CanTouch = false
+									end
+									local ln = string.lower(p.Name)
+									if ln:find("damage") or ln:find("damger") or ln:find("kill") or ln:find("hurt") then
+										if not string.find(p.Name, "Disable_", 1, true) then
+											p.Name = "Disable_" .. p.Name
+											NonDmgRenamed[p] = true
+										end
+									end
+								end
+							end)
+						end
+					end
+				end
+				task.wait(0.25)
+			end
+		end)
+	end,
+})
 RoomsFloor:AddToggle('AutoRooms',{
 Text = "Auto A-1000",
 Default = false,
