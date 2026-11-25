@@ -2089,6 +2089,278 @@ local MinesFloor = SubFloors:AddRightGroupbox("Mines", "pickaxe")
 local FoolsFloor = SubFloors:AddRightGroupbox("Fools", "ghost")
 local RoomsFloor = SubFloors:AddLeftGroupbox("Rooms", "door-open")
 local RetroFloor = SubFloors:AddLeftGroupbox("Retro", "clock")
+local OutdoorsFloor = SubFloors:AddRightGroupbox("Outdoors", "trees")
+-- ===== Outdoors =====
+local function LeafIsOutdoors()
+	local fv = Floor and Floor.Value
+	return fv == "Outdoors" or fv == "Garden" or fv == "The Outdoors"
+end
+
+-- Remove Mandrake (quét nhẹ, không mỗi frame full workspace)
+local MandrakeConn = nil
+local MandrakeDone = {}
+OutdoorsFloor:AddToggle("RemoveMandrake", {
+	Text = "Remove Mandrake",
+	Default = false,
+	Tooltip = "Xoá sổ Mandrake",
+	Callback = function(Value)
+		if MandrakeConn then task.cancel(MandrakeConn) MandrakeConn = nil end
+		if not Value then return end
+		MandrakeConn = task.spawn(function()
+			while Toggles.RemoveMandrake and Toggles.RemoveMandrake.Value do
+				if LeafIsOutdoors() then
+					local roots = {}
+					local rooms = workspace:FindFirstChild("CurrentRooms")
+					if rooms then table.insert(roots, rooms) end
+					local live = workspace:FindFirstChild("LiveEntities")
+					if live then table.insert(roots, live) end
+					-- chỉ children workspace tên khớp — tránh GetDescendants cả map
+					for _, ch in ipairs(workspace:GetChildren()) do
+						if string.lower(ch.Name):find("mandrake") then
+							table.insert(roots, ch)
+						end
+					end
+					for _, root in ipairs(roots) do
+						local list = root:IsA("Model") and { root } or root:GetChildren()
+						for _, o in ipairs(list) do
+							if MandrakeDone[o] then continue end
+							local n = string.lower(o.Name)
+							if n:find("mandrake") then
+								MandrakeDone[o] = true
+								pcall(function()
+									for _, p in ipairs(o:GetDescendants()) do
+										if p:IsA("BasePart") then
+											p.CanCollide = false
+											p.CanTouch = false
+										end
+										if string.lower(p.Name):find("trigger") and not p.Name:find("Disable_") then
+											p.Name = "Disable_" .. p.Name
+										end
+									end
+									local pp = o.PrimaryPart or o:FindFirstChildWhichIsA("BasePart")
+									if pp and o:IsA("Model") then
+										o:PivotTo(CFrame.new(pp.Position.X, -299, pp.Position.Z))
+									elseif pp then
+										pp.CFrame = CFrame.new(pp.Position.X, -299, pp.Position.Z)
+									end
+								end)
+							end
+						end
+					end
+				end
+				task.wait(0.75) -- tránh lag
+			end
+		end)
+	end,
+})
+
+-- Delete Eyestalk (đỏ)
+local EyestalkConn = nil
+OutdoorsFloor:AddToggle("DeleteEyestalk", {
+	Text = "Delete Eyestalk",
+	Default = false,
+	Risky = true,
+	Tooltip = "Risk!,Cố thử xoá Trigger EyesTalk có tỉ lệ thất bại cao!",
+	Callback = function(Value)
+		if EyestalkConn then task.cancel(EyestalkConn) EyestalkConn = nil end
+		if not Value then return end
+		EyestalkConn = task.spawn(function()
+			while Toggles.DeleteEyestalk and Toggles.DeleteEyestalk.Value do
+				if not LeafIsOutdoors() then task.wait(0.5) continue end
+				local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+				if not root then task.wait(0.3) continue end
+				local rooms = workspace:FindFirstChild("CurrentRooms")
+				if not rooms then task.wait(0.4) continue end
+				for _, d in ipairs(rooms:GetDescendants()) do
+					local n = string.lower(d.Name)
+					if n:find("eyestalk") or n:find("eye_stalk") or n:find("eyestalktrigger") then
+						local trigger = d:IsA("BasePart") and d or d:FindFirstChildWhichIsA("BasePart")
+						if not trigger then continue end
+						-- bước chạm
+						pcall(function()
+							if firetouchinterest then
+								firetouchinterest(root, trigger, 0)
+								task.wait(0.05)
+								firetouchinterest(root, trigger, 1)
+							end
+						end)
+						task.wait(0.2)
+						local activated = trigger:GetAttribute("Activated") or trigger:GetAttribute("Used")
+						if not activated then
+							local t0 = tick()
+							while tick() - t0 < 3 and Toggles.DeleteEyestalk.Value do
+								pcall(function()
+									if d:IsA("Model") then
+										d:PivotTo(root.CFrame)
+									else
+										trigger.CFrame = root.CFrame
+									end
+								end)
+								task.wait(0.1)
+							end
+						end
+						-- vẫn chưa: tắt collide + void khi gần
+						if (trigger.Position - root.Position).Magnitude < 25 then
+							trigger.CanCollide = false
+							trigger.CanTouch = false
+							trigger.CFrame = CFrame.new(trigger.Position.X, -2999, trigger.Position.Z)
+							task.wait(3)
+							if trigger.Position.Y < -1000 then
+								if Notify then Notify("Delete Eyestalk: Success!", 3) end
+								pcall(function()
+									local s = Instance.new("Sound", game:GetService("SoundService"))
+									s.SoundId = "rbxassetid://4612375233"
+									s.Volume = 5
+									s:Play()
+									task.delay(2, function() s:Destroy() end)
+								end)
+							end
+						end
+					end
+				end
+				task.wait(0.5)
+			end
+		end)
+	end,
+})
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.DeleteEyestalk
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(255,40,40)">Delete Eyestalk</font>'
+		end
+	end)
+end)
+
+-- God Mode Bramble (đỏ) — hip +17.5 khi ≤25, ra ngoài bù -17.5
+local BrambleGodConn = nil
+local BrambleBoosted = false
+OutdoorsFloor:AddToggle("GodModeBramble", {
+	Text = "God Mode Bramble",
+	Default = false,
+	Risky = true,
+	Tooltip = "Bất tử trước Bramble",
+	Callback = function(Value)
+		if BrambleGodConn then task.cancel(BrambleGodConn) BrambleGodConn = nil end
+		if not Value then
+			if BrambleBoosted then
+				local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+				if hum then hum.HipHeight = hum.HipHeight - 17.5 end
+				BrambleBoosted = false
+			end
+			return
+		end
+		BrambleGodConn = task.spawn(function()
+			while Toggles.GodModeBramble and Toggles.GodModeBramble.Value do
+				local char = LocalPlayer.Character
+				local root = char and char:FindFirstChild("HumanoidRootPart")
+				local hum = char and char:FindFirstChildOfClass("Humanoid")
+				local near = false
+				if root and LeafIsOutdoors() then
+					for _, o in ipairs(workspace:GetChildren()) do
+						if string.lower(o.Name):find("bramble") then
+							local p = o.PrimaryPart or o:FindFirstChildWhichIsA("BasePart")
+							if p and (p.Position - root.Position).Magnitude <= 25 then
+								near = true
+								break
+							end
+						end
+					end
+					local rooms = workspace:FindFirstChild("CurrentRooms")
+					if rooms and not near then
+						for _, o in ipairs(rooms:GetDescendants()) do
+							if string.lower(o.Name):find("bramble") and o:IsA("BasePart") then
+								if (o.Position - root.Position).Magnitude <= 25 then
+									near = true
+									break
+								end
+							end
+						end
+					end
+				end
+				if hum then
+					if near and not BrambleBoosted then
+						hum.HipHeight = hum.HipHeight + 17.5
+						BrambleBoosted = true
+					elseif not near and BrambleBoosted then
+						hum.HipHeight = hum.HipHeight - 17.5
+						BrambleBoosted = false
+					end
+				end
+				task.wait(0.2)
+			end
+		end)
+	end,
+})
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.GodModeBramble
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.Text = '<font color="rgb(255,40,40)">God Mode Bramble</font>'
+		end
+	end)
+end)
+
+-- Delete Bramble (button)
+OutdoorsFloor:AddButton({
+	Text = "Delete Bramble",
+	Func = function()
+		if not LeafIsOutdoors() then
+			if Notify then Notify("Delete Bramble: không phải Outdoors", 3) end
+			return
+		end
+		local function handle(model)
+			local part = model:IsA("BasePart") and model
+				or model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+			if not part then return end
+			local hasNet = false
+			pcall(function()
+				if isnetworkowner and isnetworkowner(part) then hasNet = true end
+			end)
+			if hasNet then
+				pcall(function()
+					if model:IsA("Model") then
+						model:PivotTo(CFrame.new(-29999, -29999, -29999))
+					else
+						part.CFrame = CFrame.new(-29999, -29999, -29999)
+					end
+				end)
+			else
+				task.wait(2.5)
+				pcall(function()
+					for _, p in ipairs(model:GetDescendants()) do
+						if p:IsA("BasePart") then p.CanCollide = false p.CanTouch = false end
+					end
+					part.CFrame = CFrame.new(-2999, -4999, -1999)
+				end)
+			end
+			task.delay(5, function()
+				if part and part.Position.Y < -1000 then
+					if Notify then Notify("Delete Bramble: Success!", 3) end
+				end
+			end)
+		end
+		for _, o in ipairs(workspace:GetChildren()) do
+			if string.lower(o.Name):find("bramble") then handle(o) end
+		end
+		local rooms = workspace:FindFirstChild("CurrentRooms")
+		if rooms then
+			for _, o in ipairs(rooms:GetDescendants()) do
+				if string.lower(o.Name):find("bramble") and (o:IsA("Model") or o:IsA("BasePart")) then
+					handle(o)
+				end
+			end
+		end
+	end,
+})
 
 local TargetBox = SubExploit:AddLeftGroupbox("Target", "crosshair")
 -- Label vàng
