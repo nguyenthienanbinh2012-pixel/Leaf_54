@@ -735,13 +735,6 @@ con:Disable()
 end
 end
 end
-table.insert(Connections,LocalPlayer.CharacterAdded:Connect(function()
-task.wait(1.5)
-if LocalPlayer.Character then
-local ui = LocalPlayer:FindFirstChild("PlayerGui")
-local mainUI = ui and ui:FindFirstChild("MainUI")
-local init = mainUI and mainUI:FindFirstChild("Initiator")
-MainGame = init and init:WaitForChild("Main_Game", 10)
 table.insert(Connections, LocalPlayer.CharacterAdded:Connect(function()
 	task.wait(1.5)
 	local char = LocalPlayer.Character
@@ -784,12 +777,15 @@ table.insert(Connections, LocalPlayer.CharacterAdded:Connect(function()
 	if Toggles and Toggles.Godmode and Toggles.Godmode.Value
 		and RemotesFolder and RemotesFolder.Name ~= "RemotesFolder" then
 		pcall(function()
-			char.Collision.Position -= Vector3.new(0, 4, 0)
+			if char:FindFirstChild("Collision") then
+				char.Collision.Position -= Vector3.new(0, 4, 0)
+			end
 		end)
 	end
 
 	if Toggles and Toggles.Dread and Toggles.Dread.Value then
-		local Dread = LocalPlayer:FindFirstChild("Dread", true) or LocalPlayer:FindFirstChild("_Dread", true)
+		local Dread = LocalPlayer:FindFirstChild("Dread", true)
+			or LocalPlayer:FindFirstChild("_Dread", true)
 		if Dread then Dread.Name = "_Dread" end
 	end
 
@@ -799,30 +795,7 @@ table.insert(Connections, LocalPlayer.CharacterAdded:Connect(function()
 		if Shade then Shade.Name = "_Shade" end
 	end
 end))
-if Toggles.Jamming.Value then
-if  ReplicatedStorage:FindFirstChild("LiveModifiers") and ReplicatedStorage:FindFirstChild("LiveModifiers"):FindFirstChild("Jammin") then
-local Jam = LocalPlayer.PlayerGui.MainUI.Initiator:FindFirstChild("Main_Game").Health.Jam
-Jam.Playing = false
-local Jamming = game:GetService("SoundService").Main.Jamming
-Jamming.Enabled =  false
-end
-end
-if Toggles.Godmode.Value and RemotesFolder.Name ~= "RemotesFolder" then
-LocalPlayer.Character.Collision.Position -= Vector3.new(0, 4, 0)
-end
-if Toggles.Dread.Value then
-local Dread = LocalPlayer:FindFirstChild("Dread",true) or LocalPlayer:FindFirstChild("_Dread",true)
-if Dread then
-Dread.Name = "_Dread"
-end
-end
-if Toggles.Halt.Value then
-local Dread = ClientModules.EntityModules:FindFirstChild("Shade",true) or ClientModules.EntityModules:FindFirstChild("_Shade",true)
-if Dread then
-Dread.Name = "_Shade"
-end
-end
-end))
+
 local Tabs = {
 	Info = Window:AddTab("Info", "crown"),
 	Main = Window:AddTab("Player", "user"),
