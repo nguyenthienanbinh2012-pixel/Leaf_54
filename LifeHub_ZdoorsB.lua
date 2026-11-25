@@ -742,22 +742,63 @@ local ui = LocalPlayer:FindFirstChild("PlayerGui")
 local mainUI = ui and ui:FindFirstChild("MainUI")
 local init = mainUI and mainUI:FindFirstChild("Initiator")
 MainGame = init and init:WaitForChild("Main_Game", 10)
-if MainGame then
+table.insert(Connections, LocalPlayer.CharacterAdded:Connect(function()
+	task.wait(1.5)
+	local char = LocalPlayer.Character
+	if not char then return end
+
+	local ui = LocalPlayer:FindFirstChild("PlayerGui")
+	local mainUI = ui and ui:FindFirstChild("MainUI")
+	local init = mainUI and mainUI:FindFirstChild("Initiator")
+	MainGame = init and init:WaitForChild("Main_Game", 10)
+	if not MainGame then return end
+
 	RemoteListener = MainGame:FindFirstChild("RemoteListener")
-end
-if Require and MainGame then
-	pcall(function() RequiredMainGame = require(MainGame) end)
-					end
-RemoteListener = MainGame.RemoteListener
-params.FilterDescendantsInstances = {LocalPlayer.Character}
-if Toggles.NoScenes.Value then
-local Cutscene = RemoteListener:FindFirstChild("Cutscenes") or RemoteListener:FindFirstChild("Cutscenes_")
-Cutscene.Name = "Cutscenes_"
-end
-if Require then
-RequiredMainGame = require(MainGame)
-end
-end
+	pcall(function()
+		if Require and MainGame then
+			RequiredMainGame = require(MainGame)
+		end
+	end)
+
+	if params then
+		params.FilterDescendantsInstances = { char }
+	end
+
+	if Toggles and Toggles.NoScenes and Toggles.NoScenes.Value and RemoteListener then
+		local Cutscene = RemoteListener:FindFirstChild("Cutscenes")
+			or RemoteListener:FindFirstChild("Cutscenes_")
+		if Cutscene then Cutscene.Name = "Cutscenes_" end
+	end
+
+	if Toggles and Toggles.Jamming and Toggles.Jamming.Value then
+		pcall(function()
+			if ReplicatedStorage:FindFirstChild("LiveModifiers")
+				and ReplicatedStorage.LiveModifiers:FindFirstChild("Jammin") then
+				local Jam = LocalPlayer.PlayerGui.MainUI.Initiator.Main_Game.Health.Jam
+				Jam.Playing = false
+				game:GetService("SoundService").Main.Jamming.Enabled = false
+			end
+		end)
+	end
+
+	if Toggles and Toggles.Godmode and Toggles.Godmode.Value
+		and RemotesFolder and RemotesFolder.Name ~= "RemotesFolder" then
+		pcall(function()
+			char.Collision.Position -= Vector3.new(0, 4, 0)
+		end)
+	end
+
+	if Toggles and Toggles.Dread and Toggles.Dread.Value then
+		local Dread = LocalPlayer:FindFirstChild("Dread", true) or LocalPlayer:FindFirstChild("_Dread", true)
+		if Dread then Dread.Name = "_Dread" end
+	end
+
+	if Toggles and Toggles.Halt and Toggles.Halt.Value and ClientModules then
+		local Shade = ClientModules.EntityModules:FindFirstChild("Shade", true)
+			or ClientModules.EntityModules:FindFirstChild("_Shade", true)
+		if Shade then Shade.Name = "_Shade" end
+	end
+end))
 if Toggles.Jamming.Value then
 if  ReplicatedStorage:FindFirstChild("LiveModifiers") and ReplicatedStorage:FindFirstChild("LiveModifiers"):FindFirstChild("Jammin") then
 local Jam = LocalPlayer.PlayerGui.MainUI.Initiator:FindFirstChild("Main_Game").Health.Jam
@@ -1876,6 +1917,191 @@ task.defer(function()
 			lbl.RichText = true
 			lbl.TextSize = math.max(10, (lbl.TextSize or 14) - 1)
 			lbl.Text = '<font color="rgb(255,40,40)">Disable Hit Damage Of Timothy</font>'
+		end
+	end)
+end)
+-- ===== Auto Trap With Player =====
+local AutoTrapConn = nil
+local AutoTrapHitboxes = {}
+
+local function AutoTrapCleanup()
+	for _, p in ipairs(AutoTrapHitboxes) do
+		pcall(function() if p then p:Destroy() end end)
+	end
+	table.clear(AutoTrapHitboxes)
+	if AutoTrapConn then
+		AutoTrapConn:Disconnect()
+		AutoTrapConn = nil
+	end
+end
+
+TargetBox:AddDropdown("AutoTrapTypes", {
+	Text = "Trap Types",
+	Values = { "Snare", "GloomEgg", "KillBrick" },
+	Multi = true,
+	Default = { Snare = true, GloomEgg = true },
+})
+
+TargetBox:AddDropdown("AutoTrapPlayer", {
+	Text = "Trap Target Player",
+	Default = "Nearest",
+	Values = { "Nearest" },
+})
+
+task.spawn(function()
+	task.wait(0.5)
+	local function refresh()
+		local vals = { "Nearest" }
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr \~= LocalPlayer then
+				table.insert(vals, plr.Name)
+			end
+		end
+		if Options.AutoTrapPlayer and Options.AutoTrapPlayer.SetValues then
+			Options.AutoTrapPlayer:SetValues(vals)
+		end
+	end
+	refresh()
+	Players.PlayerAdded:Connect(refresh)
+	Players.PlayerRemoving:Connect(refresh)
+end)
+
+TargetBox:AddToggle("AutoTrapWithPlayer", {
+	Text = "Auto Trap With Player",
+	Default = false,
+	Risky = true,
+	Tooltip = "Gây va chạm cạm bẫy với người chơi khác, có thể không hoạt động!",
+	Callback = function(Value)
+		AutoTrapCleanup()
+		if not Value then return end
+
+		AutoTrapConn = RunService.Heartbeat:Connect(function()
+			if not (Toggles.AutoTrapWithPlayer and Toggles.AutoTrapWithPlayer.Value) then
+				AutoTrapCleanup()
+				return
+			end
+
+			local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+			if not myRoot then return end
+
+			-- target player
+			local sel = Options.AutoTrapPlayer and Options.AutoTrapPlayer.Value or "Nearest"
+			local targetPlr = nil
+			if sel == "Nearest" or sel == "" then
+				local best, bd = nil, 500
+				for _, plr in ipairs(Players:GetPlayers()) do
+					if plr ~= LocalPlayer then
+						local r = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+						if r then
+							local d = (r.Position - myRoot.Position).Magnitude
+							if d < bd then best, bd = plr, d end
+						end
+					end
+				end
+				targetPlr = best
+			else
+				targetPlr = Players:FindFirstChild(sel)
+			end
+			if not targetPlr or not targetPlr.Character then return end
+			local tRoot = targetPlr.Character:FindFirstChild("HumanoidRootPart")
+				or targetPlr.Character:FindFirstChild("LowerTorso")
+				or targetPlr.Character:FindFirstChild("Torso")
+			if not tRoot then return end
+			local footPos = tRoot.Position - Vector3.new(0, 1.5, 0)
+
+			-- types selected
+			local types = Options.AutoTrapTypes and Options.AutoTrapTypes.Value or {}
+			local want = {}
+			if typeof(types) == "table" then
+				for k, v in pairs(types) do
+					if v == true then want[string.lower(tostring(k))] = true end
+					if typeof(k) == "number" and typeof(v) == "string" then
+						want[string.lower(v)] = true
+					end
+				end
+			end
+			if next(want) == nil then
+				want.snare = true
+				want.gloomegg = true
+			end
+
+			local function matchName(n)
+				n = string.lower(n)
+				if want.snare and n:find("snare") then return true end
+				if (want.gloomegg or want["gloom egg"] or want.gloomeggs) and n:find("gloom") then return true end
+				if (want.killbrick or want["kill brick"]) and (n:find("kill") or n:find("damage")) then return true end
+				return false
+			end
+
+			-- collect entities
+			local list = {}
+			local function scan(parent)
+				if not parent then return end
+				for _, d in ipairs(parent:GetDescendants()) do
+					if d:IsA("Model") or d:IsA("BasePart") then
+						if matchName(d.Name) then
+							local part = d:IsA("BasePart") and d
+								or d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
+							if part then
+								local dist = (part.Position - myRoot.Position).Magnitude
+								table.insert(list, { inst = d, part = part, dist = dist })
+							end
+						end
+					end
+				end
+			end
+			scan(workspace:FindFirstChild("CurrentRooms"))
+			scan(workspace)
+
+			table.sort(list, function(a, b) return a.dist < b.dist end)
+
+			local maxN = math.min(5, #list)
+			for i = 1, maxN do
+				local e = list[i]
+				local part = e.part
+				pcall(function()
+					if e.inst:IsA("Model") and e.inst.PivotTo then
+						e.inst:PivotTo(CFrame.new(footPos))
+					else
+						part.CFrame = CFrame.new(footPos)
+					end
+					-- hitbox 5,5,5
+					local hb = part:FindFirstChild("LeafTrapHitbox")
+					if not hb then
+						hb = Instance.new("Part")
+						hb.Name = "LeafTrapHitbox"
+						hb.Size = Vector3.new(5, 5, 5)
+						hb.Transparency = 0.7
+						hb.CanCollide = true
+						hb.Anchored = true
+						hb.Material = Enum.Material.ForceField
+						hb.Color = Color3.fromRGB(255, 50, 50)
+						hb.Parent = part
+						table.insert(AutoTrapHitboxes, hb)
+					end
+					hb.CFrame = CFrame.new(footPos)
+				end)
+
+				if (part.Position - footPos).Magnitude < 4 then
+					if Notify then
+						Notify("Auto Trap: Success → " .. targetPlr.Name, 2)
+					end
+				end
+			end
+		end)
+	end,
+})
+
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.AutoTrapWithPlayer
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.TextSize = math.max(9, (lbl.TextSize or 14) - 2)
+			lbl.Text = '<font color="rgb(255,40,40)">Auto Trap With Player</font>'
 		end
 	end)
 end)
@@ -9601,5 +9827,4 @@ if ThemeManager then
 ThemeManager:ApplyToTab(Tabs['Settings'])
 end
 Notify("Successfully Loaded for Game |  DOORS ",4)
-end
 end
