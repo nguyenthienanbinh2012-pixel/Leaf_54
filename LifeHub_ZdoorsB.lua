@@ -795,7 +795,46 @@ table.insert(Connections, LocalPlayer.CharacterAdded:Connect(function()
 		if Shade then Shade.Name = "_Shade" end
 	end
 end))
-
+-- ===== BOOT-SAFE (cam + move) =====
+pcall(function()
+	Library.ShowCustomCursor = false
+	UserInputService.MouseIconEnabled = true
+	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	local cam = workspace.CurrentCamera
+	local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+	if cam then
+		cam.CameraType = Enum.CameraType.Custom
+		if hum then cam.CameraSubject = hum end
+	end
+	if hum then
+		hum.PlatformStand = false
+		hum.AutoRotate = true
+	end
+end)
+pcall(function()
+	if Control then
+		require(LocalPlayer.PlayerScripts.PlayerModule):GetControls().GetMoveVector = Control
+	end
+end)
+task.defer(function()
+	task.wait(0.3)
+	for _, n in ipairs({
+		"AutoMinecart", "AntiCheatMani", "Flight", "SpectateEntityToggle",
+		"AutoTrapWithPlayer", "MinecraftCartFlatten", "FarmGlitchCube",
+	}) do
+		if Toggles[n] and Toggles[n].Value then
+			pcall(function() Toggles[n]:SetValue(false) end)
+		end
+	end
+	local r = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if r then
+		for _, n in ipairs({"VelocityMani", "FlightVelocity", "GameFlyBV", "LeafGlitchBV"}) do
+			local x = r:FindFirstChild(n)
+			if x then x:Destroy() end
+		end
+	end
+end)
+-- ===== hết BOOT-SAFE =====
 local Tabs = {
 	Info = Window:AddTab("Info", "crown"),
 	Main = Window:AddTab("Player", "user"),
@@ -873,21 +912,8 @@ do
 		)
 	end
 	local ratio = okCount / total
-	if ratio < 0.35 then -- thiếu ≥65%
-		local msg = string.format(
-			"Executor hỗ trợ %d/%d hàm (%.0f%%). Leaf Hub yêu cầu nhiều API hơn.",
-			okCount, total, ratio * 100
-		)
-		pcall(function()
-			if Library and Library.Unload then Library:Unload() end
-		end)
-		task.delay(0.5, function()
-			LocalPlayer:Kick(msg)
-		end)
-	end
 	end
 local PrankBox = Tabs.Other:AddLeftGroupbox("Prank","wand-sparkles")
--- Animation Twerk (mspaint id)
 local TwerkAnim = Instance.new("Animation")
 TwerkAnim.AnimationId = "rbxassetid://12874447851"
 local TwerkTrack = nil
