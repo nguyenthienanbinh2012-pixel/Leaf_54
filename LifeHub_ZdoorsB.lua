@@ -50,9 +50,6 @@ local LibraryName = 'Leaf Hub'
 repeat task.wait() until LocalPlayer.Character
 getgenv().ScriptLibrary = "Obsidian"
 local repo = 'https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/'
-if not getgenv().Library then
-	getgenv().Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
-end
 pcall(function()
 	Library.Scheme.Font = Font.fromEnum(Enum.Font.GothamMedium)
 end)
@@ -2745,7 +2742,7 @@ ExploitOtherBox:AddToggle("SkipGateRooms", {
 -- Anti-Self Cart Fling
 ExploitOtherBox:AddToggle("AntiSelfCartFling", {
 	Text = "Anti-Self Cart Fling",
-	Default = true,
+	Default = false,
 	Tooltip = "Phòng chống xe đẩy ngã nhân vật",
 	Callback = function(Value)
 		-- no-collide cart vs character khi bật
