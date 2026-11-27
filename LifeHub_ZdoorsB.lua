@@ -49,12 +49,29 @@ game:GetService("Players").LocalPlayer:SetAttribute("LeafLoaded",true)
 local LibraryName = 'Leaf Hub'
 repeat task.wait() until LocalPlayer.Character
 getgenv().ScriptLibrary = "Obsidian"
-local repo = 'https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/'
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/"
+
+-- Unload instance cũ (nếu có)
+pcall(function()
+	if getgenv().Library and getgenv().Library.Unload then
+		getgenv().Library:Unload()
+	end
+end)
+getgenv().Library = nil
+
+-- LUÔN load Library mới (giống Nova / Abysall)
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+getgenv().Library = Library
+
+if not Library then
+	error("[Leaf] Không load được Obsidian Library")
+end
+
 pcall(function()
 	Library.Scheme.Font = Font.fromEnum(Enum.Font.GothamMedium)
 end)
 Library.ForceCheckbox = false
-Library.Scheme.AccentColor = Color3.fromRGB(40, 220, 160) -- xanh lá dương
+Library.Scheme.AccentColor = Color3.fromRGB(40, 220, 160)
 Library.Scheme.BackgroundColor = Color3.fromRGB(12, 18, 16)
 Library.Scheme.MainColor = Color3.fromRGB(22, 32, 28)
 Library.Scheme.OutlineColor = Color3.fromRGB(40, 70, 60)
@@ -692,16 +709,68 @@ local params = RaycastParams.new()
 params.FilterDescendantsInstances = {LocalPlayer.Character}
 local  SeekPath = Instance.new("Folder",workspace)
 SeekPath.Name = "SeekPath"
-function ShowSeekPath(v)
-local Part = Instance.new("Part", SeekPath)
-Part.Size = Vector3.new(1.5, 1.5, 1.5)
-Part.Anchored = true
-Part.Shape = "Ball"
-Part.Position = v.Position
-Part.CanCollide = false
-Part.Color = Color3.new(0, 1, 0)
-Debris:AddItem(Part, 60)
+local SeekPathFolder = workspace:FindFirstChild("LeafSeekPath") or Instance.new("Folder")
+SeekPathFolder.Name = "LeafSeekPath"
+SeekPathFolder.Parent = workspace
+
+local LeafSeekBeams = {}   -- Hotel
+local LeafMineBeams = {}   -- Mines
+local LeafEyeBeams = {}    -- Outdoors
+local LeafPrevSeekNode = nil
+local LeafPrevMineNode = nil
+local LeafPrevEyeNode = nil
+
+local function LeafClearBeams(list, folder)
+	for _, b in ipairs(list) do
+		pcall(function() if b then b:Destroy() end end)
+	end
+	table.clear(list)
+	if folder then folder:ClearAllChildren() end
 end
+
+local function LeafMakePathBeam(light, prevNodeRef, beamList, color, width)
+	-- light = SeekGuidingLight / Path node
+	if not light or light:GetAttribute("LeafHighlighted") then return prevNodeRef end
+	light:SetAttribute("LeafHighlighted", true)
+
+	local node = Instance.new("Part")
+	node.Size = Vector3.one
+	node.Transparency = 1
+	node.Anchored = true
+	node.CanCollide = false
+	node.CFrame = light:IsA("BasePart") and light.CFrame or light:GetPivot()
+	node.Name = "LeafPathNode"
+	node.Parent = SeekPathFolder
+
+	local prev = prevNodeRef or node
+	local beam = Instance.new("Beam")
+	beam.Color = ColorSequence.new(color)
+	beam.FaceCamera = true
+	beam.Width0 = width
+	beam.Width1 = width
+	beam.Brightness = 8
+	beam.LightInfluence = 0
+	beam.LightEmission = 0.2
+	beam.Segments = 20
+	beam.TextureSpeed = 0
+	beam.Transparency = NumberSequence.new(0)
+	beam.Parent = SeekPathFolder
+
+	local a0 = Instance.new("Attachment", node)
+	local a1 = Instance.new("Attachment", prev)
+	beam.Attachment0 = a0
+	beam.Attachment1 = a1
+	table.insert(beamList, beam)
+	return node
+end
+
+local function LeafDefaultPathColor()
+	return Color3.fromRGB(40, 220, 160)
+end
+
+local function LeafDefaultWidth()
+	return 0.12
+	end
 function FixBridge(v)
 for _, i in pairs(v:GetChildren()) do
 if i.Name == "PlayerBarrier" and i.Rotation.X == 180 then
@@ -4218,21 +4287,44 @@ end
 end
 end
 })
-MinesFloor:AddToggle('ShowPath',{
-Text = "Show Seek Path",
-Default = false,
-Callback = function(Value)
-if Value then
-for _, v in pairs(workspace.CurrentRooms:GetDescendants()) do
-if v.Name == "SeekGuidingLight" then
-ShowSeekPath(v)
-end
-end
-else
-SeekPath:ClearAllChildren()
-end
-end
+MinesFloor:AddToggle("ShowSeekPathMine", {
+	Text = "Show Seek Path [Mine]",
+	Default = false,
+	Tooltip = "Tạo Path dây nối đến hướng đi đúng Seek",
+	Callback = function(Value)
+		LeafClearBeams(LeafMineBeams, nil)
+		LeafPrevMineNode = nil
+		if not Value then return end
+		local fv = Floor and Floor.Value
+		if not (fv == "Mines" or fv == "Mine") then
+			if Notify then Notify("Show Path Mine: chỉ The Mines", 3) end
+			Toggles.ShowSeekPathMine:SetValue(false)
+			return
+		end
+		local col = LeafDefaultPathColor()
+		local w = LeafDefaultWidth()
+		local rooms = workspace:FindFirstChild("CurrentRooms")
+		if not rooms then return end
+		for _, d in ipairs(rooms:GetDescendants()) do
+			if d.Name == "SeekGuidingLight" and d:IsA("BasePart") then
+				d:SetAttribute("LeafHighlighted", nil)
+				LeafPrevMineNode = LeafMakePathBeam(d, LeafPrevMineNode, LeafMineBeams, col, w)
+			end
+		end
+	end,
 })
+-- vô hiệu khi không Mines
+task.spawn(function()
+	while task.wait(1) do
+		local t = Toggles.ShowSeekPathMine
+		if t and t.SetDisabled then
+			local fv = Floor and Floor.Value
+			local ok = fv == "Mines" or fv == "Mine"
+			t:SetDisabled(not ok)
+			if not ok and t.Value then t:SetValue(false) end
+		end
+	end
+end)
 MinesFloor:AddToggle('FixBrokenBridge',{
 Text = "Auto Fix BrokenBridge",
 Default = false,
