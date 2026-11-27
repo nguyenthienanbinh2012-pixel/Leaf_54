@@ -2453,6 +2453,27 @@ OutdoorsFloor:AddButton({
 		end
 	end,
 })
+OutdoorsFloor:AddToggle("ShowEyestalkPath", {
+	Text = "Show Eyestalk Path",
+	Default = false,
+	Tooltip = "Hiển thị Path đúng của Màn chạy Eyestalk",
+	Callback = function(Value)
+		LeafClearBeams(LeafEyeBeams, nil)
+		LeafPrevEyeNode = nil
+		if not Value then return end
+		local col = LeafDefaultPathColor()
+		local w = LeafDefaultWidth()
+		local rooms = workspace:FindFirstChild("CurrentRooms")
+		if not rooms then return end
+		for _, d in ipairs(rooms:GetDescendants()) do
+			local n = string.lower(d.Name)
+			if d:IsA("BasePart") and (n:find("eyestalk") or n:find("guiding") or n == "seekguidinglight") then
+				d:SetAttribute("LeafHighlighted", nil)
+				LeafPrevEyeNode = LeafMakePathBeam(d, LeafPrevEyeNode, LeafEyeBeams, col, w)
+			end
+		end
+	end,
+})
 
 local TargetBox = SubExploit:AddLeftGroupbox("Target", "crosshair")
 -- Label vàng
@@ -8297,6 +8318,99 @@ task.defer(function()
 		end
 	end)
 end)
+-- ===== Show Seek Path [Hotel] =====
+HotelFloor:AddToggle("ShowSeekPathHotel", {
+	Text = "Show Seek Path",
+	Default = false,
+	Tooltip = "Dây Seek Hotel Nối đúng",
+})
+-- ColorPicker gắn toggle (Obsidian)
+pcall(function()
+	Toggles.ShowSeekPathHotel:AddColorPicker("ShowSeekPathColor", {
+		Text = "Seek Path Color",
+		Default = Color3.fromRGB(40, 220, 160),
+	})
+end)
+HotelFloor:AddSlider("ShowSeekPathWidth", {
+	Text = "Seek Path Thickness",
+	Default = 12,
+	Min = 5,
+	Max = 40,
+	Rounding = 0,
+	Suffix = " (x0.01)",
+})
+
+local function LeafRefreshHotelSeekPath()
+	LeafClearBeams(LeafSeekBeams, nil)
+	for _, c in ipairs(SeekPathFolder:GetChildren()) do
+		if c.Name == "LeafPathNode" then c:Destroy() end
+	end
+	LeafPrevSeekNode = nil
+	if not (Toggles.ShowSeekPathHotel and Toggles.ShowSeekPathHotel.Value) then return end
+	local col = (Options.ShowSeekPathColor and Options.ShowSeekPathColor.Value) or LeafDefaultPathColor()
+	local w = ((Options.ShowSeekPathWidth and Options.ShowSeekPathWidth.Value) or 12) / 100
+	local rooms = workspace:FindFirstChild("CurrentRooms")
+	if not rooms then return end
+	-- sort theo khoảng cách tới player để nối tuần tự, đỡ gãy khi cua
+	local lights = {}
+	for _, d in ipairs(rooms:GetDescendants()) do
+		if d.Name == "SeekGuidingLight" and d:IsA("BasePart") then
+			table.insert(lights, d)
+		end
+	end
+	local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if root then
+		table.sort(lights, function(a, b)
+			return (a.Position - root.Position).Magnitude < (b.Position - root.Position).Magnitude
+		end)
+	end
+	-- nối theo thứ tự xuất hiện trong room (Name / order) nếu có
+	table.sort(lights, function(a, b)
+		local ra, rb = a:FindFirstAncestorOfClass("Model"), b:FindFirstAncestorOfClass("Model")
+		local na = tonumber(ra and ra.Name) or 0
+		local nb = tonumber(rb and rb.Name) or 0
+		if na ~= nb then return na < nb end
+		return a.Position.Z < b.Position.Z
+	end)
+	for _, light in ipairs(lights) do
+		light:SetAttribute("LeafHighlighted", nil) -- cho phép tạo lại
+		LeafPrevSeekNode = LeafMakePathBeam(light, LeafPrevSeekNode, LeafSeekBeams, col, w)
+	end
+end
+
+if Toggles.ShowSeekPathHotel then
+	Toggles.ShowSeekPathHotel:OnChanged(function()
+		LeafRefreshHotelSeekPath()
+	end)
+end
+if Options.ShowSeekPathColor then
+	Options.ShowSeekPathColor:OnChanged(function()
+		local col = Options.ShowSeekPathColor.Value
+		for _, b in ipairs(LeafSeekBeams) do
+			b.Color = ColorSequence.new(col)
+		end
+	end)
+end
+if Options.ShowSeekPathWidth then
+	Options.ShowSeekPathWidth:OnChanged(function(v)
+		local w = (v or 12) / 100
+		for _, b in ipairs(LeafSeekBeams) do
+			b.Width0 = w
+			b.Width1 = w
+		end
+	end)
+end
+
+-- khi có light mới
+table.insert(Connections, workspace.DescendantAdded:Connect(function(v)
+	if v.Name ~= "SeekGuidingLight" then return end
+	if not (Toggles.ShowSeekPathHotel and Toggles.ShowSeekPathHotel.Value) then return end
+	task.defer(function()
+		local col = (Options.ShowSeekPathColor and Options.ShowSeekPathColor.Value) or LeafDefaultPathColor()
+		local w = ((Options.ShowSeekPathWidth and Options.ShowSeekPathWidth.Value) or 12) / 100
+		LeafPrevSeekNode = LeafMakePathBeam(v, LeafPrevSeekNode, LeafSeekBeams, col, w)
+	end)
+end))
 BypassEntityBox:AddToggle('FigureHearing',{
 Text = "Anti Figure Hearing",
 Default = false,
@@ -10447,3 +10561,43 @@ ThemeManager:ApplyToTab(Tabs['Settings'])
 end
 Notify("Successfully Loaded for Game |  DOORS ",4)
 end
+-- ===== Auto dump error log sau 10s =====
+task.spawn(function()
+	task.wait(10)
+	local ok, err = pcall(function()
+		local LogService = game:GetService("LogService")
+		local hist = LogService:GetLogHistory()
+		local lines = {}
+		local n = 0
+		for i = math.max(1, #hist - 400), #hist do
+			local e = hist[i]
+			if e and e.message then
+				local t = tostring(e.messageType)
+				if t:find("Error") or t:find("Warning") or (e.message:find("attempt") or e.message:find("nil")) then
+					n += 1
+					table.insert(lines, string.format("[%s] %s", t, tostring(e.message)))
+				end
+			end
+		end
+		local text = table.concat(lines, "\n")
+		if #text > 20000 then
+			text = text:sub(#text - 20000)
+		end
+		text = string.format(
+			"Leaf Hub error dump | count=%d | time=%s\n%s",
+			n, tostring(os.date and os.date("%H:%M:%S") or tick()), text
+		)
+		if setclipboard then
+			setclipboard(text)
+		elseif toclipboard then
+			toclipboard(text)
+		end
+		if Notify then
+			Notify("Đã copy " .. tostring(n) .. " dòng lỗi vào clipboard (10s)", 5)
+		end
+		warn("[Leaf] Error dump copied, lines=", n)
+	end)
+	if not ok then
+		warn("[Leaf] dump fail:", err)
+	end
+end)
