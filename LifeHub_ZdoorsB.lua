@@ -10438,3 +10438,29 @@ ThemeManager:ApplyToTab(Tabs['Settings'])
 end
 Notify("Successfully Loaded for Game |  DOORS ",4)
 end
+task.defer(function()
+	task.wait(1)
+	pcall(function()
+		local pm = LocalPlayer:FindFirstChild("PlayerScripts")
+			and LocalPlayer.PlayerScripts:FindFirstChild("PlayerModule")
+		if not pm then return end
+		local controls = require(pm):GetControls()
+		if not controls then return end
+		-- backup gốc nếu chưa có
+		if not getgenv().LeafOriginalGetMoveVector and controls.GetMoveVector then
+			getgenv().LeafOriginalGetMoveVector = controls.GetMoveVector
+		end
+		local orig = getgenv().LeafOriginalGetMoveVector
+		if orig then
+			controls.GetMoveVector = orig
+			Control = orig
+		end
+		local cam = workspace.CurrentCamera
+		local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+		if cam then
+			cam.CameraType = Enum.CameraType.Custom
+			if hum then cam.CameraSubject = hum end
+		end
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	end)
+end)
