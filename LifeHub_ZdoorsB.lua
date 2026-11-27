@@ -1912,147 +1912,6 @@ task.spawn(function()
 	Players.PlayerAdded:Connect(refresh)
 	Players.PlayerRemoving:Connect(refresh)
 end)
-
-TargetBox:AddToggle("AutoTrapWithPlayer", {
-	Text = "Auto Trap With Player",
-	Default = false,
-	Risky = true,
-	Tooltip = "Gây va chạm cạm bẫy với người chơi khác, có thể không hoạt động!",
-	Callback = function(Value)
-		AutoTrapCleanup()
-		if not Value then return end
-
-		AutoTrapConn = RunService.Heartbeat:Connect(function()
-			if not (Toggles.AutoTrapWithPlayer and Toggles.AutoTrapWithPlayer.Value) then
-				AutoTrapCleanup()
-				return
-			end
-
-			local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-			if not myRoot then return end
-
-			-- target player
-			local sel = Options.AutoTrapPlayer and Options.AutoTrapPlayer.Value or "Nearest"
-			local targetPlr = nil
-			if sel == "Nearest" or sel == "" then
-				local best, bd = nil, 500
-				for _, plr in ipairs(Players:GetPlayers()) do
-					if plr ~= LocalPlayer then
-						local r = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
-						if r then
-							local d = (r.Position - myRoot.Position).Magnitude
-							if d < bd then best, bd = plr, d end
-						end
-					end
-				end
-				targetPlr = best
-			else
-				targetPlr = Players:FindFirstChild(sel)
-			end
-			if not targetPlr or not targetPlr.Character then return end
-			local tRoot = targetPlr.Character:FindFirstChild("HumanoidRootPart")
-				or targetPlr.Character:FindFirstChild("LowerTorso")
-				or targetPlr.Character:FindFirstChild("Torso")
-			if not tRoot then return end
-			local footPos = tRoot.Position - Vector3.new(0, 1.5, 0)
-
-			-- types selected
-			local types = Options.AutoTrapTypes and Options.AutoTrapTypes.Value or {}
-			local want = {}
-			if typeof(types) == "table" then
-				for k, v in pairs(types) do
-					if v == true then want[string.lower(tostring(k))] = true end
-					if typeof(k) == "number" and typeof(v) == "string" then
-						want[string.lower(v)] = true
-					end
-				end
-			end
-			if next(want) == nil then
-				want.snare = true
-				want.gloomegg = true
-			end
-
-			local function matchName(n)
-				n = string.lower(n)
-				if want.snare and n:find("snare") then return true end
-				if (want.gloomegg or want["gloom egg"] or want.gloomeggs) and n:find("gloom") then return true end
-				if (want.killbrick or want["kill brick"]) and (n:find("kill") or n:find("damage")) then return true end
-				return false
-			end
-
-			-- collect entities
-			local list = {}
-			local function scan(parent)
-				if not parent then return end
-				for _, d in ipairs(parent:GetDescendants()) do
-					if d:IsA("Model") or d:IsA("BasePart") then
-						if matchName(d.Name) then
-							local part = d:IsA("BasePart") and d
-								or d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
-							if part then
-								local dist = (part.Position - myRoot.Position).Magnitude
-								table.insert(list, { inst = d, part = part, dist = dist })
-							end
-						end
-					end
-				end
-			end
-			scan(workspace:FindFirstChild("CurrentRooms"))
-			scan(workspace)
-
-			table.sort(list, function(a, b) return a.dist < b.dist end)
-
-			local maxN = math.min(5, #list)
-			for i = 1, maxN do
-				local e = list[i]
-				local part = e.part
-				pcall(function()
-					if e.inst:IsA("Model") and e.inst.PivotTo then
-						e.inst:PivotTo(CFrame.new(footPos))
-					else
-						part.CFrame = CFrame.new(footPos)
-					end
-					-- hitbox 5,5,5
-					local hb = part:FindFirstChild("LeafTrapHitbox")
-					if not hb then
-						hb = Instance.new("Part")
-						hb.Name = "LeafTrapHitbox"
-						hb.Size = Vector3.new(5, 5, 5)
-						hb.Transparency = 0.7
-						hb.CanCollide = true
-						hb.Anchored = true
-						hb.Material = Enum.Material.ForceField
-						hb.Color = Color3.fromRGB(255, 50, 50)
-						hb.Parent = part
-						table.insert(AutoTrapHitboxes, hb)
-					end
-					hb.CFrame = CFrame.new(footPos)
-				end)
-
-				if (part.Position - footPos).Magnitude < 4 then
-					if Notify then
-						Notify("Auto Trap: Success → " .. targetPlr.Name, 2)
-					end
-				end
-			end
-		end)
-	end,
-})
-
-task.defer(function()
-	task.wait(0.4)
-	pcall(function()
-		local t = Toggles.AutoTrapWithPlayer
-		if not t then return end
-		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
-		if lbl then
-			lbl.RichText = true
-			lbl.TextSize = math.max(9, (lbl.TextSize or 14) - 2)
-			lbl.Text = '<font color="rgb(255,40,40)">Auto Trap With Player</font>'
-		end
-	end)
-end)
-
 local PlayerBox = Tabs.Main:AddLeftGroupbox('Body','person-standing')
 local GameBox = Tabs.Main:AddLeftGroupbox('Game Management','gamepad-2')
 local SubFloors = Tabs.Floor:AddSubTab("Floors", "building")
@@ -2070,7 +1929,6 @@ local function LeafIsOutdoors()
 	return fv == "Outdoors" or fv == "Garden" or fv == "The Outdoors"
 end
 
--- Remove Mandrake (quét nhẹ, không mỗi frame full workspace)
 local MandrakeConn = nil
 local MandrakeDone = {}
 OutdoorsFloor:AddToggle("RemoveMandrake", {
@@ -2210,7 +2068,6 @@ task.defer(function()
 	end)
 end)
 
--- God Mode Bramble (đỏ) — hip +17.5 khi ≤25, ra ngoài bù -17.5
 local BrambleGodConn = nil
 local BrambleBoosted = false
 OutdoorsFloor:AddToggle("GodModeBramble", {
@@ -2358,6 +2215,144 @@ OutdoorsFloor:AddToggle("ShowEyestalkPath", {
 })
 
 local TargetBox = SubExploit:AddLeftGroupbox("Target", "crosshair")
+TargetBox:AddToggle("AutoTrapWithPlayer", {	Text = "Auto Trap With Player",
+	Default = false,
+	Risky = true,
+	Tooltip = "Gây va chạm cạm bẫy với người chơi khác, có thể không hoạt động!",
+	Callback = function(Value)
+		AutoTrapCleanup()
+		if not Value then return end
+
+		AutoTrapConn = RunService.Heartbeat:Connect(function()
+			if not (Toggles.AutoTrapWithPlayer and Toggles.AutoTrapWithPlayer.Value) then
+				AutoTrapCleanup()
+				return
+			end
+
+			local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+			if not myRoot then return end
+
+			-- target player
+			local sel = Options.AutoTrapPlayer and Options.AutoTrapPlayer.Value or "Nearest"
+			local targetPlr = nil
+			if sel == "Nearest" or sel == "" then
+				local best, bd = nil, 500
+				for _, plr in ipairs(Players:GetPlayers()) do
+					if plr ~= LocalPlayer then
+						local r = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+						if r then
+							local d = (r.Position - myRoot.Position).Magnitude
+							if d < bd then best, bd = plr, d end
+						end
+					end
+				end
+				targetPlr = best
+			else
+				targetPlr = Players:FindFirstChild(sel)
+			end
+			if not targetPlr or not targetPlr.Character then return end
+			local tRoot = targetPlr.Character:FindFirstChild("HumanoidRootPart")
+				or targetPlr.Character:FindFirstChild("LowerTorso")
+				or targetPlr.Character:FindFirstChild("Torso")
+			if not tRoot then return end
+			local footPos = tRoot.Position - Vector3.new(0, 1.5, 0)
+
+			-- types selected
+			local types = Options.AutoTrapTypes and Options.AutoTrapTypes.Value or {}
+			local want = {}
+			if typeof(types) == "table" then
+				for k, v in pairs(types) do
+					if v == true then want[string.lower(tostring(k))] = true end
+					if typeof(k) == "number" and typeof(v) == "string" then
+						want[string.lower(v)] = true
+					end
+				end
+			end
+			if next(want) == nil then
+				want.snare = true
+				want.gloomegg = true
+			end
+
+			local function matchName(n)
+				n = string.lower(n)
+				if want.snare and n:find("snare") then return true end
+											if (want.gloomegg or want["gloom egg"] or want.gloomeggs) and n:find("gloom") then return true end
+				if (want.killbrick or want["kill brick"]) and (n:find("kill") or n:find("damage")) then return true end
+				return false
+			end
+
+			-- collect entities
+			local list = {}
+			local function scan(parent)
+				if not parent then return end
+				for _, d in ipairs(parent:GetDescendants()) do
+					if d:IsA("Model") or d:IsA("BasePart") then
+						if matchName(d.Name) then
+							local part = d:IsA("BasePart") and d
+								or d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
+							if part then
+								local dist = (part.Position - myRoot.Position).Magnitude
+								table.insert(list, { inst = d, part = part, dist = dist })
+							end
+						end
+					end
+				end
+			end
+			scan(workspace:FindFirstChild("CurrentRooms"))
+			scan(workspace)
+
+			table.sort(list, function(a, b) return a.dist < b.dist end)
+
+			local maxN = math.min(5, #list)
+			for i = 1, maxN do
+				local e = list[i]
+				local part = e.part
+				pcall(function()
+					if e.inst:IsA("Model") and e.inst.PivotTo then
+						e.inst:PivotTo(CFrame.new(footPos))
+					else
+						part.CFrame = CFrame.new(footPos)
+					end
+					-- hitbox 5,5,5
+					local hb = part:FindFirstChild("LeafTrapHitbox")
+					if not hb then
+						hb = Instance.new("Part")
+						hb.Name = "LeafTrapHitbox"
+						hb.Size = Vector3.new(5, 5, 5)
+						hb.Transparency = 0.7
+						hb.CanCollide = true
+						hb.Anchored = true
+						hb.Material = Enum.Material.ForceField
+						hb.Color = Color3.fromRGB(255, 50, 50)
+						hb.Parent = part
+						table.insert(AutoTrapHitboxes, hb)
+					end
+					hb.CFrame = CFrame.new(footPos)
+				end)
+
+				if (part.Position - footPos).Magnitude < 4 then
+					if Notify then
+						Notify("Auto Trap: Success → " .. targetPlr.Name, 2)
+					end
+				end
+			end
+		end)
+	end,
+})
+
+task.defer(function()
+	task.wait(0.4)
+	pcall(function()
+		local t = Toggles.AutoTrapWithPlayer
+		if not t then return end
+		local lbl = t.TextLabel or (t.Object and t.Object:FindFirstChildWhichIsA("TextLabel", true))
+		if lbl then
+			lbl.RichText = true
+			lbl.TextSize = math.max(9, (lbl.TextSize or 14) - 2)
+			lbl.Text = '<font color="rgb(255,40,40)">Auto Trap With Player</font>'
+		end
+	end)
+end)
 -- Label vàng
 TargetBox:AddLabel(
 	'<font color="rgb(255,215,0)">Các hỗ trợ chỉ hoạt động Floor Rush Mode / Floor có Gun Gold</font>',
