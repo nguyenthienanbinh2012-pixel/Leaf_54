@@ -1833,27 +1833,51 @@ OtherMainBox:AddToggle("DisableTimothyDamage", {
 		end
 	end,
 })
-
-do
-	local hooked = false
-	task.defer(function()
-		if hooked or not hookmetamethod then return end
-		hooked = true
-		local oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-			local method = getnamecallmethod()
-			if Toggles.DisableTimothyDamage and Toggles.DisableTimothyDamage.Value then
-				if method == "FireServer" or method == "InvokeServer" then
-					local ln = string.lower(tostring(self.Name or ""))
-					if ln:find("timothy") or ln:find("spider") then
-						return
-					end
+-- ===== namecall: CHỈ 1 LẦN =====
+if typeof(hookmetamethod) == "function" then
+	local oldNc
+	oldNc = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+		if Library and Library.Unloaded then
+			return oldNc(self, ...)
+		end
+		local ok, method = pcall(getnamecallmethod)
+		if not ok or not method then
+			return oldNc(self, ...)
+		end
+		if method == "FireServer" or method == "InvokeServer" then
+			local n = self and self.Name
+			if n == "ClutchHeartbeat" and Toggles.AutoHeartbeat and Toggles.AutoHeartbeat.Value then
+				return oldNc(self, true)
+			end
+			if method == "FireServer" and n == "Crouch" and Toggles.FigureHearing and Toggles.FigureHearing.Value then
+				return oldNc(self, true, true)
+			end
+			if Toggles.DisableTimothyDamage and Toggles.DisableTimothyDamage.Value and n then
+				local ln = string.lower(tostring(n))
+				if ln:find("timothy") or ln:find("spider") then
+					return nil
 				end
 			end
-			return oldNamecall(self, ...)
-		end))
-	end)
-end
-
+			if method == "FireServer" and n == "MotorReplication" then
+				local eyesOn = Toggles.EyesDamage and Toggles.EyesDamage.Value
+				local lookOn = Toggles.LookmanDamage and Toggles.LookmanDamage.Value
+				local hasEyes = workspace:FindFirstChild("Eyes")
+					or workspace:FindFirstChild("Lookman")
+					or workspace:FindFirstChild("EyesRushMode")
+				local hasLook = workspace:FindFirstChild("BackdoorLookman")
+					or workspace:FindFirstChild("Lookman")
+				if (eyesOn and hasEyes) or (lookOn and hasLook) then
+					local fv = Floor and Floor.Value
+					if fv == "Fools" or fv == "OldHotel" then
+						return oldNc(self, 0, -65, 0, false)
+					end
+					return oldNc(self, -650)
+				end
+			end
+		end
+		return oldNc(self, ...)
+	end))
+	end
 task.defer(function()
 	task.wait(0.4)
 	pcall(function()
@@ -9765,62 +9789,6 @@ end
 end
 end
 end))
-if HookMeta then
-local Old
-Old = hookmetamethod(game, "__namecall", function(Self, ...)
-if Library.Unloaded then
-if HookMeta then
-local Old
-Old = hookmetamethod(game, "__namecall", function(Self, ...)
-	if Library.Unloaded then
-		return Old(Self, ...)
-	end
-	local Method = getnamecallmethod()
-	local Args = {...}
-
-	if Method == "FireServer" or Method == "InvokeServer" then
-		if Toggles.AutoHeartbeat.Value and Self.Name == "ClutchHeartbeat" then
-			return Old(Self, true)
-		end
-		if Method == "FireServer" and Toggles.FigureHearing.Value and Self.Name == "Crouch" then
-			return Old(Self, true, true)
-		end
-
-		if Method == "FireServer" and Self.Name == "MotorReplication" then
-			local eyesOn = Toggles.EyesDamage and Toggles.EyesDamage.Value
-			local lookOn = Toggles.LookmanDamage and Toggles.LookmanDamage.Value
-			local hasEyes = workspace:FindFirstChild("Eyes")
-				or workspace:FindFirstChild("Lookman")
-				or workspace:FindFirstChild("EyesRushMode")
-			local hasLook = workspace:FindFirstChild("BackdoorLookman")
-				or workspace:FindFirstChild("Lookman")
-			if (eyesOn and hasEyes) or (lookOn and hasLook) then
-				local floorVal = Floor and Floor.Value
-				if floorVal == "Fools" or floorVal == "OldHotel" then
-					return Old(Self, 0, -65, 0, false)
-				else
-					return Old(Self, -650)
-				end
-			end
-		end
-	end
-	return Old(Self, ...)
-end)
-end
-return Old(Self, ...)
-end
-local Method = getnamecallmethod()
-if Method == "FireServer" or Method == "InvokeServer" then
-if Toggles.AutoHeartbeat.Value and Self.Name == "ClutchHeartbeat" then
-return Old(Self, true)
-end
-if Method == "FireServer" and Toggles.FigureHearing.Value and Self.Name == "Crouch" then
-return Old(Self, true,true)
-end
-end
-return Old(Self, ...)
-end)
-end
 table.insert(Connections,workspace.DescendantAdded:Connect(function(v)
 local timeout = 0
 repeat task.wait(0.03) timeout += 0.03 until v.Parent or timeout > 0.5
