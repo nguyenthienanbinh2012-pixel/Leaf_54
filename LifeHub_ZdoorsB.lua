@@ -1867,51 +1867,7 @@ task.defer(function()
 		end
 	end)
 end)
--- ===== Auto Trap With Player =====
-local AutoTrapConn = nil
-local AutoTrapHitboxes = {}
 
-local function AutoTrapCleanup()
-	for _, p in ipairs(AutoTrapHitboxes) do
-		pcall(function() if p then p:Destroy() end end)
-	end
-	table.clear(AutoTrapHitboxes)
-	if AutoTrapConn then
-		AutoTrapConn:Disconnect()
-		AutoTrapConn = nil
-	end
-end
-
-TargetBox:AddDropdown("AutoTrapTypes", {
-	Text = "Trap Types",
-	Values = { "Snare", "GloomEgg", "KillBrick" },
-	Multi = true,
-	Default = { Snare = true, GloomEgg = true },
-})
-
-TargetBox:AddDropdown("AutoTrapPlayer", {
-	Text = "Trap Target Player",
-	Default = "Nearest",
-	Values = { "Nearest" },
-})
-
-task.spawn(function()
-	task.wait(0.5)
-	local function refresh()
-		local vals = { "Nearest" }
-		for _, plr in ipairs(Players:GetPlayers()) do
-			if plr ~= LocalPlayer then
-				table.insert(vals, plr.Name)
-			end
-		end
-		if Options.AutoTrapPlayer and Options.AutoTrapPlayer.SetValues then
-			Options.AutoTrapPlayer:SetValues(vals)
-		end
-	end
-	refresh()
-	Players.PlayerAdded:Connect(refresh)
-	Players.PlayerRemoving:Connect(refresh)
-end)
 local PlayerBox = Tabs.Main:AddLeftGroupbox('Body','person-standing')
 local GameBox = Tabs.Main:AddLeftGroupbox('Game Management','gamepad-2')
 local SubFloors = Tabs.Floor:AddSubTab("Floors", "building")
